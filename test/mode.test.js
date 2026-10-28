@@ -32,7 +32,7 @@ function loadClient() {
   return captured
 }
 
-const { classify, MODE_DEFAULT, MODE_MOBILE } = loadClient().__test
+const { classify, permissionShort, modelShort, MODE_DEFAULT, MODE_MOBILE } = loadClient().__test
 
 test('常见手机竖屏进入 mobile', () => {
   const phones = [
@@ -83,4 +83,17 @@ test('横屏即使短边很小也不进入', () => {
 test('非法尺寸回退 default', () => {
   assert.equal(classify(0, 0, MODE_MOBILE), MODE_DEFAULT)
   assert.equal(classify(Number.NaN, 800, MODE_MOBILE), MODE_DEFAULT)
+})
+
+test('权限按钮 aria-label → 短文案', () => {
+  assert.equal(permissionShort('访问模式，当前：完全权限', 'zh'), '完全访问')
+  assert.equal(permissionShort('访问模式，当前：仅可查看', 'zh'), '只读')
+  assert.equal(permissionShort('访问模式，当前：工作区内修改', 'zh'), '工作区')
+  assert.equal(permissionShort('Access mode, current: Read-only', 'en'), 'Read-only')
+})
+
+test('模型按钮 aria-label → V4.1 · H', () => {
+  assert.equal(modelShort('选择模型，当前 DeepSeek-V4.1-Flash，推理等级 High'), 'V4.1 \u00b7 H')
+  assert.equal(modelShort('选择模型，当前 DeepSeek-V4.1-Flash，推理等级 中'), 'V4.1 \u00b7 M')
+  assert.equal(modelShort('Select model, current DeepSeek-V4.1-Flash, reasoning level Low'), 'V4.1 \u00b7 L')
 })
