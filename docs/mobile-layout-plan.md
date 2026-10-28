@@ -124,7 +124,7 @@ ratio  = long / short
 
 ### 5.2.1 默认功能盘点与分区
 
-以 DSH 默认界面为准，功能分区如下：
+以 DSH 默认界面为准（参考截图：[reference-default-ui.png](assets/reference-default-ui.png)），功能分区如下：
 
 | 默认入口 | 分区 | 理由 |
 |---|---|---|
