@@ -1,0 +1,7 @@
+# @xiaopb/dsh-mobile-layout bundle patch: 插入 web profile roster 行，使本插件
+# 的客户端 bundle（lib/client.js，__ModuleLoader__ closure factory）随 web GUI
+# 加载。所有视觉与交互都通过官方槽位（conversation.header.leading /
+# shell.bottom / shell.overlay）与官方布局服务工作，不禁用、不替换任何官方服务。
+- insert:
+    - id: mobile-layout
+      name: '@xiaopb/dsh-mobile-layout'
