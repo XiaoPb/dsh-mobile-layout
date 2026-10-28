@@ -1,0 +1,252 @@
+# dsh-mobile-layout 实施计划
+
+> 状态：可行性已评估，方案待实现  
+> 调研目标版本：DSH `0.2.1-rc.4`（桌面 Electron / Web / Android runtime 共用 Web 客户端）  
+> 日期：2026-10-28
+
+## 1. 结论
+
+**可行。** 不需要修改 DSH 内核，也不需要替换官方布局插件，就能把手机竖屏切换成「单列内容 + 抽屉式侧边栏 + 全屏右栏」的布局：
+
+- 官方布局本身就是一个普通客户端插件（`@deepseek-ai/dsh-client-ui-layout`），它占 root 槽位并把 `sidebar / main / rightbar` 声明为子槽位；
+- 插件可以注入全局 CSS、注册官方槽位、通过 `ctx.layout` 调用 `toggleSidebar()` / `selectPanel()` / `openRightbar()`；
+- 现有官方样式**没有任何宽度媒体查询**（整份前端 CSS 只有 `prefers-reduced-motion`），窄屏只是用 JS 把侧栏压成 56px 轨道，因此外层覆盖不会与官方响应式规则打架；
+- `ctx.layout` 没有暴露侧栏开合快照，需要用 frame 上的 `data-sidebar-collapsed` 属性做状态同步——这是本方案唯一需要 DOM 观测的点，已确认该属性由 AppFrame 稳定输出。
+
+风险集中在**官方 DOM / 哈希类名随版本漂移**与 **Android WebView 的安全区 / 输入法行为**，两者都有降级方案（锚点失败即回到默认布局，不阻塞启动）。
+
+## 2. 调研结果
+
+### 2.1 官方布局的可操作面
+
+| 能力 | 事实 | 对本方案的意义 |
+|---|---|---|
+| 布局是插件 | `ui-layout` 把 `AppFrame` 注册进内置 `root` 槽位，并声明 `sidebar` / `main` / `rightbar` / `shell.bottom` / `shell.overlay` / `shell.leading` | 可替换，但不应该替换 |
+| 替换 root 的代价 | `sidebar` 是 single 槽位，注册即「整列替换」，其内部 `sidebar.workspaces` / `sidebar.settings` 等座位会一起消失 | 重写导航列成本极高，否决 |
+| 官方响应式 | `<1024px` 侧栏自动收成 56px 轨道；手动展开只改变 `narrowExpanded`；`<768px` 右栏打开时自动全屏 | 手机默认形态已接近桌面缩小版，侧栏仍占轨道 |
+| 官方 CSS | 布局、侧栏、会话前端 CSS 中没有 `max-width` / `orientation` 媒体查询 | 覆盖层不与官方规则冲突 |
+| 布局服务 | `ctx.layout.toggleSidebar()`、`selectPanel(id)`、`beginNavigation()`、`openRightbar(track, fullscreen)`、`closeRightbar()` | 抽屉开合、面板跳转可走官方通道 |
+| 侧栏状态 | `ILayout.panelInfo` 只发布 `activePanelId`，不发布侧栏开合；AppFrame 渲染 `data-sidebar-collapsed` | 用 DOM 属性观测侧栏状态，其余走服务 |
+| 可用槽位 | `conversation.header.leading`（single，root，当前无占用者）、`shell.overlay`（list，root，可点击穿透） | 汉堡入口放 header leading；遮罩/兜底入口放 shell.overlay |
+| 插件样式 | 官方客户端插件通过 `<style data-plugin-css>` 注入样式；CSS 在挂载前生效 | 可在首帧前建立移动态，避免闪跳 |
+| 插件产物 | `__ModuleLoader__.load({id, factory(require)})` + `dsh.client.platform: "web"` + `cordis.patch.yml` 插 roster 行 | 与 `dsh-mobile-compose` 相同的已验证路径 |
+| 现有实现参考 | `dsh-mobile-compose` 已用官方槽位 + 样式注入 + locale + RPC 在桌面与 MuMu 模拟器验证 | 工程路径可复用 |
+
+### 2.2 为什么不能只靠媒体查询
+
+媒体查询能改尺寸，但改不了交互：
+
+- 抽屉开合要调 `ctx.layout.toggleSidebar()`，且必须知道当前是开还是关；
+- 手机竖屏下侧栏不能继续占 56px 网格轨道，否则内容宽度被吃掉；
+- 右栏是 occupant 自己上报的呈现形态，CSS 只能兜底，不能替代官方 `<768px` 全屏逻辑。
+
+所以采用 **JS 形态判定 + `ctx.layout` 控制 + 属性作用域 CSS**，媒体查询只作为辅助（`prefers-reduced-motion` 等）。
+
+### 2.3 Android 端边界
+
+- 官方 Android runtime 加载同一套 Web 客户端，插件产物可以直接复用（`dsh-hardssh` 已在 Android runtime 验证过宿主与客户端插件）。
+- 官方 `index.html` 的 viewport 目前是 `width=device-width, initial-scale=1`，**没有 `viewport-fit=cover`**，因此 `env(safe-area-inset-*)` 在 Android WebView 里可能为 0；需要在运行时探测并允许设置侧补偿。
+- Android 返回键 / 手势不经过 Web 的 `popstate` 时，抽屉关闭要依赖容器行为；插件侧同时提供 Esc、遮罩点击、左滑关闭，返回键作为真机验收项。
+
+## 3. 方案对比
+
+| 方案 | 做法 | 结论 |
+|---|---|---|
+| A. 替换 root / sidebar | 禁用官方 `ui-layout`，自己重写三栏与导航列 | 工作量大、跟随官方升级成本极高，否决 |
+| B. 插槽 + 服务 + 覆盖层 CSS（选定） | 保留官方 AppFrame；手机竖屏时改写网格与侧栏定位，新增汉堡入口、遮罩与手势 | 改动小、可回退、默认布局零影响 |
+| C. 修改内核 / 改前端构建产物 | 直接改 DSH 安装目录 | 升级即丢，且违反「不修改官方内核」原则，否决 |
+
+## 4. 手机形态判定
+
+### 4.1 输入
+
+- `window.visualViewport`（存在时优先）与 `window.innerWidth/innerHeight`
+- `window.devicePixelRatio`（仅用于诊断，不参与阈值）
+- `matchMedia('(orientation: portrait)')`、`matchMedia('(pointer: coarse)')`
+- 页面可见性、软键盘引起的 visualViewport 高度变化
+
+### 4.2 判定公式（默认值，可配置）
+
+```text
+w, h   = 当前布局视口宽高（CSS px）
+short  = min(w, h)
+long   = max(w, h)
+portrait = h > w
+ratio  = long / short
+
+进入手机布局：portrait && short <= 600 && ratio >= 1.25
+保持手机布局：portrait && short <= 640 && ratio >= 1.15
+其余情况：默认桌面布局
+```
+
+- 进入 / 退出加 120ms 去抖与滞回，避免旋屏、分屏拖拽时来回切换。
+- 判定使用布局视口而不是屏幕物理像素：Android WebView 的 CSS px 已按 dp 换算，物理像素会把高 DPR 手机误判成平板。
+- 参考机型：320×568、360×640、375×667、390×844、412×915 进入；768×1024 平板、844×390 横屏、1280×900 桌面不进入。
+- 模式写入 `documentElement.dataset.dshmMode = "mobile" | "default"`；**所有移动 CSS 只在 `html[data-dshm-mode="mobile"]` 下生效**，退出时立即恢复默认，不写任何官方布局偏好。
+
+## 5. 布局与交互规格（手机竖屏）
+
+```text
+┌──────────────────────────────────────┐
+│ ☰  会话标题（单行省略）      ⋯  右栏开关 │  44px 顶栏 + 安全区
+├──────────────────────────────────────┤
+│                                      │
+│              会话 / 面板              │  单列，全宽
+│                                      │
+│                                      │
+├──────────────────────────────────────┤
+│ 输入框（底部安全区，随键盘上移）        │
+└──────────────────────────────────────┘
+    ← 左缘右滑或点 ☰：侧栏抽屉（86vw / max 320px）
+```
+
+### 5.1 左侧栏 → 抽屉
+
+- 关闭态：侧栏列完全移出视口，不保留 56px 轨道；主列 `grid-template-columns: 0 minmax(0,1fr) 0`。
+- 打开态：`position: absolute; inset-block: 0; left: 0; width: min(86vw, 320px)`，右缘圆角 + 阴影；官方侧栏内容原样复用。
+- 遮罩：`shell.overlay` 注册全屏透明层，打开时显示 `color-mix` 背景，点击关闭；遮罩层 `pointer-events: auto`，关闭时 `pointer-events: none`。
+- 触发：
+  - `conversation.header.leading` 注册 40×40 汉堡按钮（官方槽位当前无占用者）；
+  - `shell.overlay` 注册左缘 20px 手势热区 + 全局左滑手势，保证全局面板下也能打开；
+  - 打开 / 关闭统一调用 `ctx.layout.toggleSidebar()`，通过 `[data-sidebar-collapsed]` 同步 UI 状态。
+- 关闭路径：遮罩点击、Esc、左滑 ≥ 40px、选中会话 / 工作区 / 全局面板后自动关闭、进入默认布局时强制关闭。
+- 可访问性：抽屉打开时焦点移入侧栏，`role="dialog"` + `aria-modal="true"`；关闭后焦点回到汉堡按钮；遮罩不进入 Tab 序列。
+
+### 5.2 顶栏与按键
+
+- 保留官方 header 结构，只压缩留白；标题单行省略，避免挤掉右侧工具组。
+- 汉堡 40×40、右上工具按钮保持官方 44px 触控尺寸；不新增底部 Tab 栏，避免与输入区抢高度。
+- 全局面板（插件管理器等）没有 conversation header 时，由 `shell.overlay` 兜底显示左上角浮动菜单键；检测到 header 存在时自动隐藏，避免重复。
+
+### 5.3 右侧栏
+
+- 官方 `<768px` 已自动全屏，保持官方行为，不重写。
+- 补三处：全屏面板四周安全区内边距、关闭按钮 44px 触控、Android 返回键优先关闭右栏（插件无法拦截原生返回时，至少保证遮罩与 Esc 可用）。
+- 右栏打开时自动关闭左侧抽屉。
+
+### 5.4 输入区与键盘
+
+- 底部内边距使用 `max(env(safe-area-inset-bottom), 0px)`，并提供配置覆盖（Android 无 `viewport-fit=cover` 时）。
+- 软键盘弹起时以 `visualViewport.height` 驱动 `--dshm-viewport-height`，避免底部输入框被遮挡；不修改官方 composer 的 DOM。
+- 与 `dsh-mobile-compose` 共存：不覆盖其 `＋` 面板与 dock 样式；若检测到该插件已接管输入行，保持其布局优先级。
+
+## 6. 技术实现
+
+### 6.1 仓库与包结构
+
+```text
+dsh-mobile-layout/
+├─ package.json                 # @xiaopb/dsh-mobile-layout
+├─ cordis.patch.yml             # insert: mobile-layout
+├─ lib/
+│  ├─ index.js                  # 宿主侧：配置命名空间 / capabilities 路由（P4）
+│  └─ client.js                 # 浏览器侧：__ModuleLoader__ + 判定 + CSS + 槽位
+├─ test/                        # node:test（判定、DOM 锚点、状态机）
+├─ tools/                       # Playwright 验收与诊断脚本
+├─ docs/
+│  └─ mobile-layout-plan.md
+└─ README.md
+```
+
+- `package.json` 的 `dsh.client.platform = "web"`、`dsh.bundle.patch = "./cordis.patch.yml"`，`cordis.patch.yml` 只插入 roster 行，不禁用任何官方服务。
+- 客户端保持单文件产物（与 `dsh-mobile-compose` 一致），纯判定函数挂到 `module.exports.__test` 供 Node 测试，避免引入构建链。
+
+### 6.2 DOM 锚点
+
+官方类名是 CSS Modules 哈希，不能直接依赖。按结构 + 稳定属性锚定：
+
+| 锚点 | 定位 |
+|---|---|
+| frame | 包含 `[data-rightbar-col]` 的 grid 容器 |
+| 侧栏列 | frame 的第 1 个元素子节点 |
+| 中列 | 侧栏列的下一个元素兄弟 |
+| 右栏列 | `[data-rightbar-col]` |
+| 底栏 / 浮层 | `[data-shell-bottom]` / `[data-shell-overlay]` |
+
+插件给锚点打 `data-dshm-*` 属性，CSS 只使用这些自有属性。`MutationObserver` 监听 frame 重建并补齐属性；锚点缺失时：
+
+1. `console.warn` 一次；
+2. 强制 `data-dshm-mode = "default"`；
+3. 不抛错、不阻断 DSH 启动。
+
+### 6.3 状态机
+
+```text
+default --(判定进入)--> mobile-closed
+mobile-closed --(☰ / 左滑)--> mobile-open      // ctx.layout.toggleSidebar()
+mobile-open --(遮罩 / Esc / 左滑 / 选中项)--> mobile-closed
+任意 mobile 状态 --(判定退出 / 旋屏 / 锚点丢失)--> default
+```
+
+- 唯一事实来源：`data-sidebar-collapsed`。
+- `toggleSidebar()` 后等待下一帧 + MutationObserver 确认，再更新按钮 `aria-expanded`；超时 300ms 视为失败并回退默认布局。
+- 不用 React 状态镜像官方布局，避免双写。
+
+### 6.4 样式作用域与主题
+
+- 只注入一个 `<style data-plugin-css="dsh-mobile-layout">`，全部选择器以 `html[data-dshm-mode="mobile"]` 开头。
+- 颜色全部取官方 token（`--dsw-*`），不硬编码主题色；仅遮罩使用 `color-mix`。
+- 移动态禁用列宽过渡与拖拽手柄；退出时移除全部覆盖样式。
+- 预留 CSS 变量：`--dshm-drawer-width`、`--dshm-header-height`、`--dshm-safe-top`、`--dshm-safe-bottom`、`--dshm-viewport-height`。
+
+### 6.5 生命周期
+
+- `apply(ctx)`：注入样式 → 注册 header leading / shell.overlay → 启动判定与锚点观察 → 绑定 `visualViewport` / `orientationchange` / `resize`。
+- `ctx.effect` 清理：移除样式、槽位、监听器、DOM 属性，恢复默认布局。
+- 插件卸载后不得留下 `data-dshm-*` 或移动样式。
+
+## 7. 阶段计划
+
+| 阶段 | 内容 | 验收 |
+|---|---|---|
+| M0 契约探针 | DOM 锚点、`data-sidebar-collapsed`、`ctx.layout` 调用、Android viewport 探测 | 桌面 / Android 真机各出一份诊断；锚点失败时默认布局正常 |
+| M1 形态判定 | 判定公式、滞回、`data-dshm-mode`、样式骨架、无移动样式时零视觉差 | 边界单测全绿；1280×900 像素级无变化 |
+| M2 侧栏抽屉 | 汉堡入口、遮罩、开合同步、手势、焦点管理、选中后关闭 | 320 / 390 宽无横向滚动，内容全宽；开合 10 次状态不漂移 |
+| M3 顶栏与右栏 | 紧凑顶栏、全局面板兜底入口、右栏安全区与触控尺寸 | 右栏全屏、关闭可达；无 header 的面板仍能打开抽屉 |
+| M4 输入区 | 安全区、软键盘、与 `dsh-mobile-compose` 共存 | 键盘弹起输入框不被遮挡；组合安装无重叠 |
+| M5 加固发布 | 版本契约测试、设置命名空间、README、CI / 打包 | 0.2.1 线全矩阵通过；发布 tarball 可安装 |
+
+每个阶段先落可回退的小改动；M1 之前不改变任何官方节点位置。
+
+## 8. 验证矩阵
+
+**单元测试（node:test）**
+
+- 判定：320×568、360×640、375×667、390×844、412×915、600×900、601×900、640×900、768×1024、844×390、400×600（分屏）、1280×900。
+- 滞回：600→610→640→641 的进入 / 保持 / 退出。
+- DOM 锚点：正常 frame、缺失 rightbar、重建 frame。
+- 状态机：开合超时、锚点丢失、卸载清理。
+
+**无头 Chromium（Playwright，触摸 + 移动视口）**
+
+- 390×844 DPR3：默认态 -> 移动态，侧栏不占轨道、无横向溢出、汉堡可见、开合与遮罩、返回后默认。
+- 320×568 / 360×640：抽屉宽度、按钮触控尺寸、内容不裁切。
+- 768×1024 / 844×390 / 1280×900：与基线布局矩形逐项比对，差异为 0。
+- 右栏：打开全屏、关闭、抽屉互斥。
+- 软键盘：注入 visualViewport 高度变化，输入框仍在可视区。
+
+**真机**
+
+- Android（MuMu 模拟器 + 实机）：安全区、输入法、返回键 / 手势、旋屏、分屏。
+- 桌面 Electron：窗口缩放到 390×844 时行为与 Web 一致；默认布局无回归。
+
+## 9. 风险与回退
+
+| 风险 | 等级 | 缓解 |
+|---|---|---|
+| 官方 DOM / 哈希类名升级漂移 | 中高 | 只依赖结构与 `data-*`；每个 DSH 版本跑锚点契约测试；失败即 `default` 模式 |
+| 侧栏状态未公开，DOM 同步滞后 | 中 | 单一事实来源 + MutationObserver + 300ms 超时回退；不做乐观 UI |
+| 覆盖 inline `grid-template-columns` 冲突 | 中 | 移动态 `!important` + 禁用过渡；仅改 frame 网格，不动 occupant |
+| Android `env()` 为 0 / 无 `viewport-fit` | 中 | 运行时探测，配置侧补偿；不修改官方 index.html |
+| Android 返回键不可拦截 | 低 | 遮罩 / Esc / 左滑三条关闭路径；真机验收 |
+| 与其他插件样式冲突 | 低 | 全部选择器带 `data-dshm-*` 作用域；不覆盖 composer 与右栏内部样式 |
+| 误判导致桌面布局变化 | 低 | 默认阈值 + 滞回 + 像素级回归；提供“强制关闭”配置 |
+
+**总回退**：任何阶段删除插件或关闭配置，官方布局原样恢复；插件不持久化任何官方布局偏好。
+
+## 10. 未决问题
+
+1. 手机阈值默认 600 / 640 是否需要按机型放宽到 720（大屏手机 / 折叠屏外屏）。
+2. 抽屉宽度默认 `min(86vw, 320px)` 是否覆盖 320px 窄机（可能压到 275px，需真机看官方侧栏内容裁切）。
+3. 是否需要底部导航栏（会话 / 文件 / 终端）；当前方案不引入，避免压缩会话高度。
+4. Android 原生返回键是否需要容器侧配合（插件只能覆盖 Web 内路径）。
