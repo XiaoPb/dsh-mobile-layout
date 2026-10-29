@@ -17,8 +17,8 @@
 #   VERSION                   默认读 package.json
 #   REGISTRY                  默认 https://registry.npmjs.org/
 #   NODE_AUTH_TOKEN           可选；token 兜底用（Actions 里来自 secrets.NPM_TOKEN）
-#   POLL_ATTEMPTS             确认公开的轮询次数，默认 10
-#   POLL_INTERVAL             轮询间隔秒，默认 6
+#   POLL_ATTEMPTS             确认公开的轮询次数，默认 18
+#   POLL_INTERVAL             轮询间隔秒，默认 10
 #   GITHUB_OUTPUT             由 Actions 注入；用于输出 method=<发布方式>
 #   ACTIONS_ID_TOKEN_REQUEST_URL  由 Actions 注入；存在即认为可以走 OIDC
 #   PROBE_REGISTRY            默认 1；0 表示失败诊断时不访问 registry（本地/单测用）
