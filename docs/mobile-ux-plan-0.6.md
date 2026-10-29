@@ -295,7 +295,7 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 
 | 阶段 | 内容 | 结果 |
 |---|---|---|
-| **M1** 纯函数 + 单测 | `rowsFor` / `slotOf` / `planAddPages` / `isSettingsDialog`；`npm run check` 全绿 | `test/ux.test.js` 30 项全过（0/1/4/5/8/9/11/16/17/24 项、非法输入、跨 realm 数组比较；另含工作区分组与相对时间 3 项） |
+| **M1** 纯函数 + 单测 | `rowsFor` / `slotOf` / `planAddPages` / `isSettingsDialog`；`npm run check` 全绿 | `test/ux.test.js` 30 项全过（0/1/4/5/8/9/11/16/17/24 项、非法输入、跨 realm 数组比较；另含工作区分组与相对时间 3 项）；0.6.0 之后补 8 项（原型键目录名分组、会话行 id 归一 / 当前会话置顶 / blank 过滤 / 不改源数组、`STRINGS` 中英键一致、翻页 `aria-label`），合计 38 项 |
 | **M2** 加号面板分页 | 显式行列定位 + 页宽吸附 + 圆点指示 | 11 项（过滤「文件」后 10 项）→ 2 行 ×4 列 ×2 页；面板高恒 203px；`scrollLeft` 0↔393、`scrollWidth` 785；一页一次手势 |
 | **M3** 设置页全屏 | 打标 + 外壳 CSS + 品牌行 + 抽屉互斥 + 常驻条隐藏 | 面板 `0,0,401,712`；`HEAD 0,56,401,48`；`SCROLL 0,104,401,608` |
 | **M4** 内容区细节 | 页签 chip、工具行、行布局、开关热区、外观宫格 | 6 个 chip 均高 40；工具按钮 32、「关闭」44×44；`scrollWidth == clientWidth == 401`；外观窄屏两列 |
@@ -368,3 +368,50 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 6. **版本号**：`0.6.0`（行为变化，非补丁）。
 7. **会话面板的工作区**：改用官方抽屉式的「分组标题 + 会话缩进」，不用 `[工作区]·[会话]` 单行拼接（截断方向不一致、`·` 易与分隔符混淆）；单工作区不出现分组标题，只在「会话」标题旁标一次。
 8. **会话面板高度**：内容多时最多占屏高 60%，屏特别矮时用 280px 下限继续长高；内容少时按内容自适应，不硬撑、不出现空滚动。
+
+---
+
+## 10. 0.6.0 之后的修复与复核（2026-10-29）
+
+0.6.0 发布后按「阻断 → 高优 → 清理」把 `lib/client.js` 全量重审了一遍，共 17 个修复（版本号仍是 `0.6.0`，发版建议 `0.6.1`）。
+
+### 10.1 修复清单
+
+| # | 类别 | 问题 | 处理 |
+|---|---|---|---|
+| 1 | 阻断 | 分组字典用 `{}`，工作区目录名叫 `constructor` / `toString` / `valueOf` 时命中原型链上的函数，`group.rows.push` 抛 `TypeError`，会话面板整片崩 | `groupSessionsByWorkspace` 与 `workspaceTitleMap` 一并改 `Object.create(null)`；补 5 个原型键名目录名的回归用例 |
+| 2 | 高 | `sessionRows` 按 `row.id \|\| row.sessionId` 取 id，渲染侧只认 `row.id`：只有 `sessionId` 的快照会「当前会话不标记 + 点击无效 + key 全 undefined」 | 抽出 `sessionRowId()`，在 `sessionRows` 里浅拷贝补 `id`，排序也改走归一值 |
+| 3 | 高 | `data-dshm-popover` 只打不撤；官方把浮层根留成 0 高空壳时 `overlayVisible()` 恒为真，返回键被空转吃掉 | 新增 `prunePopoverMarks()`（已卸载 / 量不出高度且内部无可见菜单即撤标记），observer 每帧与打标入口各清一次 |
+| 4 | 高 | `tagStatsDialog` 只按「`role=dialog` + 无 ≥3 导航 + 含 tok/用量/context」判定，插件自己的 `.dshm-sheet` 会被压成统计小窗 | 排除 `.dshm-sheet`、`[data-dshm-popover]` 子树与 `[data-dshm-sidebar]` |
+| 5 | 高 | 进入 mobile 时 `requestDrawer(false)` 收起官方侧栏，退出时从不恢复，桌面 / 平板切回来永久少一块 | 记 `sidebarExpandedBeforeMobile`，退出 / 卸载按原值回正（只调一次 `toggleSidebar`，避免异步互相覆盖） |
+| 6 | 高 | observer 每帧全量同步几何，消息流式输出时 60fps 反复量 rect / computedStyle | 几何类同步合并到 120ms；输入卡换节点走立即分支；`document.hidden` 跳过；`syncComposerEdge` 加几何签名，没变不重扫子树 |
+| 7 | 中 | `t()` 读 `runtime.lang`，切语言不触发重渲染，文案要等下一次状态变化 | 新增 `setLang()`：同时写 `runtime.lang` 与 `state.lang`，渲染期优先读 state |
+| 8 | 中 | 翻页圆点 `aria-label` 硬编码中文，英文环境读屏念中文 | `STRINGS` 加 `page` / `pageCurrent` 模板 + `pageLabel()`；补中英键一致与占位符用例 |
+| 9 | 中 | `dispose` / `syncPanelSpace` 只清分页状态，不清官方节点上的 `grid-template-columns` / `grid-column` / `display:none`，官方复用 listbox 会停在「多列 + 缺项」 | 两处都先 `clearAddPaging(node)` 再清状态 |
+| 10 | 低 | `servicesReady` / `--dshm-panel-height` / `.dshm-mobile-only` / `timeNow\|timeYesterday` 无引用；`apply` 内重复一份 `exports.__test` | 全部删除 |
+| 11 | 低 | `verify-package` 不校验 bundle 内 `VERSION` 与 `package.json` 一致 | 加 `/const\s+VERSION\s*=\s*['"]([^'"]+)['"]/` 比对，并做负向验证 |
+| 12 | 低 | `publish-npm.sh` 头注释写 `POLL_ATTEMPTS=10 / INTERVAL=6`，代码是 18 / 10 | 注释对齐代码 |
+| 13 | a11y | 底部表有 `role=dialog` 但无 `aria-modal`、打开后焦点仍在背后；抽屉无焦点管理 | 表补 `aria-modal` + 焦点进出；抽屉展开时补 `role` / `aria-label` / `aria-modal` 并把焦点送进侧栏（跳过输入框，免得弹软键盘） |
+| 14 | a11y | 插件自建动效不响应系统「减少动态效果」 | `@media (prefers-reduced-motion: reduce)` 关过渡与动画，终态保留 |
+
+### 10.2 复核方式与结论
+
+- `node --check lib/client.js` + `npm test`（38 项）+ `npm run check`（包清单 / bundle 契约自检）全绿；
+- 17 个提交逐个用 `git worktree` 检出后跑 `npm test` + `verify-package`，中间态没有一个被破坏；
+- 把 `CSS_TEXT` 反解成数组实际 `join('\n')`：**847 行、花括号 125/125 平衡**，`@media` 块落在末尾且结构完整；
+- `verify-package` 的版本校验做过负向验证：临时把常量改成 `0.6.1`，脚本打印 `0.6.1 vs 0.6.0` 并以退出码 1 结束，还原后 ALL PASS。
+
+复核中又发现并修掉两处（提交 `e002746`、`f904e1c`）：
+
+1. **抽屉 `role=dialog` 常驻**：原实现一进手机形态就挂 `role=dialog`，只按开合切 `aria-modal`。但收起后的侧栏只是 `translateX(-104%)` 的离屏元素，仍留在无障碍树里，读屏会在一段看不见的内容上念「对话框」。改为**仅在展开时**补 role / `aria-label` / `aria-modal`，收起立即还原；官方属性按节点记录，React 重挂侧栏节点时先还原旧节点、再对新节点重新取值。
+2. **每帧重复 prune**：observer 先 `prunePopoverMarks()`，进 `tagComposerMenus()` 又清一遍，同一帧两次全文档查询 + rect 测量。给 `tagComposerMenus(marksPruned)` 加参数，observer 传 `true`。
+
+### 10.3 待真机验证
+
+| 项 | 方法 | 关注点 |
+|---|---|---|
+| 底部表读屏 | TalkBack：开「会话」→ 滑动遍历 → 关闭 | 焦点是否落在关闭按钮；关闭后是否回到常驻条的「会话」 |
+| 抽屉读屏 | TalkBack：开抽屉 → 滑动遍历 → 关闭 | 展开时是否作为对话框播报；收起后侧栏不应再被念成 dialog |
+| 键盘 Tab（平板 + 外接键盘） | Tab / Shift+Tab 循环 | 底部表与抽屉内 Tab 会不会被背后内容打断（当前未做焦点陷阱，靠 `aria-modal` 约束读屏） |
+| 减少动态效果 | 开发者选项把动画缩放调到 0.5x / 关闭，或仿真 `prefers-reduced-motion` | 抽屉、遮罩、宫格、圆点四类动效应无过渡，终态与开启动效时一致 |
+| 侧栏 `role` 覆盖 | 与官方布局对照 | 展开期间官方侧栏语义被临时替换；若官方自身逻辑依赖该 role，可退到「只保留焦点管理、不加 role」 |
