@@ -25,6 +25,8 @@ npm run pack:dry  # 预览发布文件清单
 | 页头侧栏键贴靠 `floatMenuLeft` | `left = 标题左缘 − 44`（36px 键 + 8px 间距） | 视觉嵌入标题行、标题零平移；标题左缘 < 52px 时退回「键固定 8px + 标题右移 ≤48px」兜底 |
 | 页头滚动隐藏判据 | 页头行相对 center 顶部位移 `topGap < −4` | **不能用绝对阈值**：实测各页/各设备静止标题顶从 8px 到 56px 不等（MuMu 8/24/44，K70 28），只有相对位移是设备无关且兼容吸顶头的判据 |
 | ⊕ 面板焦点抑制时长 | 输入控件禁用 600ms | 官方打开面板时的异步 refocus 落在窗口内；过长影响用户立刻打字 |
+| 面板高度 `addPanelHeight` | = 键盘高，钳 160 ~ 视口 60% | 面板与键盘同贴屏幕底部，等高则占据同一区域，切换时输入行位置（frame padding 与视口收缩互相抵消）不动 |
+| 键盘高来源 `resolveImeHeight` | 原生桥 > 实测/持久化 > 视口 42% 估值 | 原生 WindowInsets 最准且无需弹键盘；visualViewport 需真弹一次；估值仅首次兜底 |
 | 加号面板分页 | 4 列 × 2 行，超出横向分页 | 单手可达；页签 `pageLabel(i, active)` |
 | 会话表高度上限 | 屏高 60% | 留出底部操作条与输入区 |
 
@@ -50,7 +52,12 @@ npm run pack:dry  # 预览发布文件清单
 1. `openOfficialAddMenu()` 点击官方按钮**前**经公共底座 `suppressComposerFocus(ms, onRestore)` 把 composer 输入控件短暂置 `disabled` / `contenteditable=false`——`focus()` 在禁用元素上是 no-op，官方 refocus 直接落空，软键盘全程不拉起；600ms 后按原值恢复。
 2. 120 / 250ms 各补一次 `blurComposer()`，兜底找不到控件的场景。
 3. `tagComposerMenus()` 的宫格分支兜底：面板打开 >800ms 且焦点仍在 composer 时收掉（800ms 内不动，避免和官方异步 focus 竞争；选择器带搜索框走 picker 分支，不受影响）。
-4. **反向互斥（0.1.10）**：面板开着点输入框，官方「点击外部关闭」会把关面板与聚焦同帧做掉——面板还在收起动画里键盘已顶上来。`closeAddMenuForComposerTap()` 在 document 捕获阶段截住对输入框的 pointerdown：主动 `closeOfficialAddMenu()` + `suppressComposerFocus(350)` 吞掉本次官方聚焦，350ms 后恢复输入并 `focusComposer()`——面板先收完、键盘随后拉起；期间用户若又打开面板则只恢复输入不抢焦点。
+4. **反向互斥（0.1.10）**：面板开着点输入框时在 document 捕获阶段截住对输入框的 pointerdown，主动收面板后拉键盘。
+5. **等高原位替换（0.1.11）**：面板高度与软键盘等高（`--dshm-add-panel-h`），两个方向都无收展动画——
+   - 面板 → 键盘（点输入框）：html 打 `data-dshm-swap="hide"`（面板瞬时隐形）+ 立即 `focusComposer()`，键盘在面板原区域弹起；
+   - 键盘 → 面板（点 ⊕，检测 composer 持有焦点）：html 打 `data-dshm-swap="show"`（面板瞬时就位、无弹入动画），键盘滑落收起；
+   - 两种替换期间 frame 的 `padding-bottom` 过渡关闭：视口收缩/回扩与 padding 变化互相抵消，**输入行原地不动**；
+   - **标记必须挂在 `<html>` 上**：挂在面板节点上会被官方 React 收起/打开时的重渲染抹掉，面板闪现一下（看起来像「收起又快速打开」，真机复现过）；html 属性不受官方管辖，节点属性方案已废弃。
 
 ### 3.4 加号面板分页与配色
 
@@ -108,7 +115,26 @@ MSYS_NO_PATHCONV=1 "$ADB" -s <serial> exec-in run-as app.dsh.mobile sh -c \
 - `input tap/swipe` 坐标是**物理像素**；软键盘弹起后底部条整体上移，「更多」等键的纵坐标会变（K70 实测 y 3118 → 1780）。
 - 验证浮层时序用双截图法：动作后 0.4s 抓中间帧（键盘/过渡态）+ 1.5s 抓终态。
 
-## 7. 已知限制与回退
+## 7. 键盘高度的获取（Android 壳桥接约定）
+
+WebView JS **没有**"不弹键盘就知道高度"的 API；来源按优先级：
+
+1. **原生注入（推荐，最准）**：Android 壳（Kotlin）用 `WindowInsetsCompat.Type.ime()` 拿精确值，经 JS 推给 WebView。插件侧读取约定（二选一）：
+   ```kotlin
+   // Kotlin 侧（API 30+；需 WindowCompat.setDecorFitsSystemWindows(window, false)）
+   ViewCompat.setOnApplyWindowInsetsListener(webView) { _, insets ->
+       val imePx = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+       val css = (imePx / resources.displayMetrics.density).toInt()
+       webView.evaluateJavascript(
+           "window.__DSH_IME_HEIGHT=$css;window.dispatchEvent(new Event('dsh-ime-height'))", null)
+       insets
+   }
+   ```
+   插件读取 `window.__DSH_IME_HEIGHT`（CSS px 直给）或 `window.DshAndroidKeyboard.heightPx()`（物理 px，按 devicePixelRatio 换算）；`dsh-ime-height` 事件触发插件立即重算。
+2. **visualViewport 实测**：adjustResize 下视口收缩量 = 键盘高（≥120px 显著收缩才采纳，防 pinch-zoom 误判）；测得后写 localStorage（`dshm-ime-height`），跨会话持久化——只需真弹一次键盘。
+3. **启发式估值**：视口 × 42%，仅"从未开过键盘且无持久化值"的首次兜底，开过一次即被实测覆盖。
+
+## 8. 已知限制与回退
 
 | 限制 | 原因 | 缓解 |
 |---|---|---|

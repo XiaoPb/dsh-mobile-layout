@@ -49,6 +49,8 @@ const {
   swipeDirection,
   nextTabIndex,
   drawerStartLimit,
+  addPanelHeight,
+  resolveImeHeight,
   floatMenuLeft,
   SWIPE_MIN,
   STRINGS,
@@ -535,4 +537,39 @@ test('drawerStartLimit：打开区为左 40% 屏宽，钳 64–200', () => {
   assert.equal(drawerStartLimit(0), 96)
   assert.equal(drawerStartLimit(NaN), 96)
   assert.equal(drawerStartLimit(undefined), 96)
+})
+
+test('addPanelHeight：面板高=键盘高，钳 160 ~ 视口 60%', () => {
+  // K70：键盘 ~337 CSS px → 面板同高，与键盘占据同一底部区域
+  assert.equal(addPanelHeight(337, 917), 337)
+  assert.equal(addPanelHeight(280, 800), 280)
+  // 异常小值钳到 160（防测量毛刺把面板压扁）
+  assert.equal(addPanelHeight(80, 917), 160)
+  // 异常大值钳到视口 60%（防把面板顶到半屏以上）
+  assert.equal(addPanelHeight(700, 917), 550)
+  // 未测得键盘高度（0/负/NaN/undefined）→ 0，面板维持内容自适应
+  assert.equal(addPanelHeight(0, 917), 0)
+  assert.equal(addPanelHeight(-5, 917), 0)
+  assert.equal(addPanelHeight(NaN, 917), 0)
+  assert.equal(addPanelHeight(300, NaN), 0)
+  assert.equal(addPanelHeight(undefined, 917), 0)
+})
+
+test('resolveImeHeight：原生注入 > 实测/持久化 > 启发式', () => {
+  // 原生桥优先（最准，无需真弹键盘）
+  assert.equal(resolveImeHeight(337, 300, 917), 337)
+  assert.equal(resolveImeHeight('337', 0, 917), 337)
+  // 原生缺席用实测/持久化值
+  assert.equal(resolveImeHeight(0, 337, 917), 337)
+  assert.equal(resolveImeHeight(0, '336.5', 917), 336.5)
+  assert.equal(resolveImeHeight(undefined, 300, 917), 300)
+  // 都没有 → 启发式：视口 42%（首次使用兜底，开过键盘后被实测覆盖）
+  assert.equal(resolveImeHeight(0, 0, 917), 385)
+  assert.equal(resolveImeHeight(null, undefined, 800), 336)
+  // 视口也无效 → 0（面板维持内容自适应）
+  assert.equal(resolveImeHeight(0, 0, NaN), 0)
+  assert.equal(resolveImeHeight(0, 0, undefined), 0)
+  // 非法持久化值（NaN/负数）不采纳
+  assert.equal(resolveImeHeight(0, NaN, 917), 385)
+  assert.equal(resolveImeHeight(0, -5, 917), 385)
 })
