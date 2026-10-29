@@ -44,6 +44,8 @@ const {
   normalizeWorkspacePath,
   sessionRows,
   sessionRowId,
+  pageLabel,
+  STRINGS,
   ADD_COLS,
   ADD_MAX_ROWS,
 } = loadClient().__test
@@ -339,4 +341,20 @@ test('sessionRows：输入非法时返回空表，不改动调用方数组', () 
   const snapshot = { items: source }
   sessionRows(snapshot)
   assert.equal(source.length, 1)
+})
+
+test('STRINGS：中英文键集合一致（防止漏翻）', () => {
+  const zh = Object.keys(STRINGS.zh).sort()
+  const en = Object.keys(STRINGS.en).sort()
+  assert.deepEqual(arr(zh), arr(en))
+})
+
+test('pageLabel：模板按语言渲染且不残留占位符', () => {
+  // 默认语言为 en（state.lang 初值），页码从 1 开始
+  assert.equal(pageLabel(0, false), 'Page 1')
+  assert.equal(pageLabel(1, true), 'Current page, 2')
+  for (const text of [pageLabel(0, false), pageLabel(2, true)]) {
+    assert.ok(!text.includes('{n}'), `残留占位符：${text}`)
+    assert.ok(!/第|页/.test(text), `英文环境不应出现中文：${text}`)
+  }
 })
