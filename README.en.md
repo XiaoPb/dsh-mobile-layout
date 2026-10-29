@@ -8,6 +8,8 @@
 
 **DSH mobile portrait layout plugin (v0.1.9)**
 
+Docs: [Architecture](docs/architecture.md) ｜ [Technical notes](docs/technical-notes.md) ｜ [中文版](README.md)
+
 A Cordis plugin that turns the DSH web client into a one-handed, touch-first layout on **phone portrait** screens — **without modifying the official kernel or replacing the official layout plugin**. It only adapts the phone-portrait form; landscape, tablet and desktop keep the official layout pixel-for-pixel.
 
 ---
@@ -84,7 +86,7 @@ npm test          # unit tests only (55)
 npm run pack:dry  # preview the files that will be published
 ```
 
-Pushing a `v*` tag triggers Release (npm Trusted Publishing with `NPM_TOKEN` fallback, then polls until the version is public). Device acceptance (MuMu) needs a device and is done manually per `docs/mobile-ux-plan-0.6.md`.
+Pushing a `v*` tag triggers Release (npm Trusted Publishing with `NPM_TOKEN` fallback, then polls until the version is public). Device acceptance needs a device and is done manually per section 6 of `docs/technical-notes.md`.
 
 ## License
 

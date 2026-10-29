@@ -1,0 +1,118 @@
+# dsh-mobile-layout 技术说明
+
+> 实现细节、参数依据、测试与真机调试方法。总体设计见《[架构文档](architecture.md)》。
+
+## 1. 产物与包契约
+
+- **单文件产物**：`lib/client.js` 即发布物，无构建步骤。文件是 `define(...)` 工厂（Cordis 客户端模块协议），内部自带 `module.exports` 闭包，只 require 官方提供的 `react`。
+- **版本契约**：文件内 `const VERSION` 必须与 `package.json` 一致，`npm run verify-package` 负责校验（发布前 CI 强制）。改版本号两处要同步。
+- **测试出口**：`module.exports.__test` 导出全部纯函数与常量（`classify`、`swipeDirection`、`drawerStartLimit`、`floatMenuLeft`、`planAddPages`、`tintHash`、`sessionRows`、`STRINGS` 等），供 `test/ux.test.js` 使用。注意 `__test` 对象出自 vm 沙箱（跨 realm），断言对象值时先逐字段取值或转本域数组，**不要直接 `deepEqual` 沙箱对象**（原型不同必挂）。
+
+```sh
+npm run check     # node --check → 55 项单测 → verify-package 包契约自检
+npm test          # 仅单测
+npm run pack:dry  # 预览发布文件清单
+```
+
+## 2. 关键参数与依据
+
+| 参数 | 值 | 依据 |
+|---|---|---|
+| 进入手机模式 | 竖屏 + 短边 ≤ 600 CSS px + 长宽比 ≥ 1.25 | 覆盖主流手机 CSS 视口；桌面最小可缩窗 520×600 会被宿主判据挡住 |
+| 保持模式（滞回） | 短边 ≤ 640 / 比例 ≥ 1.15 | 避免 600~640 区间窗口缩放来回抖动 |
+| 横滑最小位移 `SWIPE_MIN` | 48 CSS px | 低于此视为误触；纵向超过横向 0.72 倍不认（竖向滚动优先） |
+| 抽屉开栏起手区 `drawerStartLimit` | 屏宽左 40%，钳 64–200 CSS px | 全面屏把系统返回绑在硬边缘，24px 边缘区根本滑不到；QQ 式中间偏左起手。钳制防窄屏退化成边缘手势、宽屏和内容横滑打架 |
+| 页头侧栏键贴靠 `floatMenuLeft` | `left = 标题左缘 − 44`（36px 键 + 8px 间距） | 视觉嵌入标题行、标题零平移；标题左缘 < 52px 时退回「键固定 8px + 标题右移 ≤48px」兜底 |
+| 页头滚动隐藏判据 | 页头行相对 center 顶部位移 `topGap < −4` | **不能用绝对阈值**：实测各页/各设备静止标题顶从 8px 到 56px 不等（MuMu 8/24/44，K70 28），只有相对位移是设备无关且兼容吸顶头的判据 |
+| ⊕ 面板焦点抑制时长 | 输入控件禁用 600ms | 官方打开面板时的异步 refocus 落在窗口内；过长影响用户立刻打字 |
+| 加号面板分页 | 4 列 × 2 行，超出横向分页 | 单手可达；页签 `pageLabel(i, active)` |
+| 会话表高度上限 | 屏高 60% | 留出底部操作条与输入区 |
+
+## 3. 各功能域实现要点
+
+### 3.1 页头侧栏键（全局面板）
+
+- `syncPageHead()` 在官方全局面板页里**纯几何探测**页头行（贴近 center 顶端、横向 ≥ 半宽、高 14–160、不含输入控件），再在页头内找最上层纯文本叶子作标题。
+- 键本体由 `OverlayLayer` 渲染（fixed 定位），几何写入 CSS 变量：`--dshm-float-menu-top`（垂直对齐标题行中线）、`--dshm-float-menu-left`（水平贴标题左缘）。
+- 滚动跟踪：document 捕获 scroll（rAF 合帧）重算 `syncPageHead`；`topGap < −4` 打 `data-dshm-float-menu-hidden`（opacity 0 + pointer-events none，120ms 过渡），滚回顶部回显。该页从未出现过页头时维持缺省位不隐藏。
+- 图标为 Sidebar（panel-left 形：圆角矩形 + 左竖线，`SidebarIcon`）；会话头里的抽屉入口保持 ☰ 汉堡（官方 header leading 语义），两者不混用。
+- 故意**不做 DOM 插入**：面板页页头结构各异且归官方 React 管辖，插入节点会被重渲染吞掉或需改造行容器，回归风险大于收益；fixed 键 + CSS 变量贴靠是零侵入解。
+
+### 3.2 抽屉手势
+
+- 监听在 document 上（passive），`touchstart` 记起点并判定起手区（含三道防冲突闸：底部表 / ⊕ 面板 / 设置页打开时不叠开；起手点在横向滚动容器——`scrollWidth > clientWidth + 4` 且 `overflow-x: auto|scroll`，向上找 6 层——内不触发），`touchmove` 里按方向阈值判定意图。
+- 打开方向限起手区，**收起方向（左滑关抽屉）全屏任意位置可用**；系统边缘返回无法拦截也不应拦截（WebView 无权限），扩大起手区是唯一正解。
+
+### 3.3 ⊕ 加号面板与输入法互斥
+
+根因链：输入法开着点 ⊕ → 官方打开面板还会**异步 refocus** 输入框 → 面板与软键盘同屏。只 blur 挡不住 refocus（实测真机「键盘拉起→收起→弹面板」体验交叉）。方案：
+
+1. `openOfficialAddMenu()` 点击官方按钮**前**把 composer 输入控件短暂置 `disabled` / `contenteditable=false`——`focus()` 在禁用元素上是 no-op，官方 refocus 直接落空，软键盘全程不拉起；600ms 后按原值恢复。
+2. 120 / 250ms 各补一次 `blurComposer()`，兜底找不到控件的场景。
+3. `tagComposerMenus()` 的宫格分支兜底：面板打开 >800ms 且焦点仍在 composer 时收掉（800ms 内不动，避免和官方异步 focus 竞争；选择器带搜索框走 picker 分支，不受影响）。
+
+### 3.4 加号面板分页与配色
+
+- 官方 ⊕ 菜单 surface 被 `tagComposerMenus` 打标后，`collectAddOptions()` 收集条目（去重：`isDuplicateAddOption` 认官方与 drop 别名），`planAddPages()` 按行上限分页，`AddPager` 渲染页点。
+- 配色：`tintHash()` 按别名哈希从 12 档柔和色（蓝/橙/紫/绿 4 系）落位，同类型同色、同屏不撞色；新增功能零代码自动配色。
+
+### 3.5 设置页手机化
+
+- 官方设置对话框被 `tagSettings` 整体改造为全屏面板（`data-dshm-settings-*` 属性族）：品牌行 + 可横滑页签 + 返回键。
+- 页签滑动：`canStartSettingsSwipe` 判定起手合法性（不在卡片/列表内），`swipeDirection` 判方向，`nextTabIndex` 钳边界不循环，`centerSettingsTab` 滚动对齐激活页签。
+- 返回键 `ensureSettingsBack` 是**真实 DOM 插入**到官方页签行最左——与浮动键不同，此处行容器单一可控，每次同步重插防官方清除。
+
+### 3.6 Composer 融合
+
+`syncComposerPad` / `syncComposerFrame` / `syncComposerEdge` 把输入区压平融合底部面板（去圆角/边框/阴影、全宽同表面、1px 分界）；`syncComposerChips` 把权限 / 模型短名 chip（`permissionShort` / `modelShort`，中英文表驱动）留在输入行，「完全访问 / Full access」恒标红。
+
+## 4. i18n
+
+- `STRINGS` 表驱动，`t(key)` 取词；语言跟随官方 `locale` 服务（监听 `locale/change`），服务缺席退回 `<html lang>` / `navigator.language`（`detectLang`）。
+- 文案集中在表里新增，不在逻辑里散落；设置页页签、底部表、加号面板标签全部走表。
+
+## 5. 状态与浮层互斥
+
+浮层四类：抽屉、底部表、⊕ 面板、设置页。互斥规则：
+
+- 打开任一浮层先关其他（`openSheet` 内先 `requestDrawer(false)` 等）；层序栈 `syncOverlayHistory` 记录打开顺序，Esc / 系统返回 / 遮罩点击按栈逐层关（`onKeyDown` 的优先级：设置页 → 底部表 → ⊕ 面板 → 抽屉 → 右栏全屏）。
+- 关闭瞬间记录 `popoverClosedAt` 类时间戳，防止官方浮层的收起事件又触发插件侧重开。
+- 官方全局面板（panelInfo）激活时：底部条隐藏、hero 清除、侧栏键与手势接管——面板页自身不是插件的浮层，是官方页面。
+
+## 6. 真机部署与调试（Redmi K70 / MuMu）
+
+### 6.1 adb 部署
+
+```sh
+ADB="D:/Program Files/Netease/MuMu Player 12/shell/adb.exe"   # 含物理设备支持
+# K70：插件路径与模拟器不同，注意 profiles/web/node_modules
+MSYS_NO_PATHCONV=1 "$ADB" -s <serial> exec-in run-as app.dsh.mobile sh -c \
+  'cat > files/dsh-home/profiles/web/node_modules/@xiaopb/dsh-mobile-layout/lib/client.js' \
+  < lib/client.js
+# md5 双端校验 → force-stop → monkey 拉起
+```
+
+- K70：物理 1440×3200 @560dpi，CSS 视口 ≈ 411×917（÷3.5）；MuMu：720×1280，CSS 400×711。
+- **几何结论以 DOM 探针为准，不要拿截图像素换算**：截图是物理像素，加状态栏偏移，误差足以误导判定。
+
+### 6.2 DOM 探针法（定位样式/判定 bug 的标准流程）
+
+把只读 IIFE 探针**追加**到设备端 `client.js` 末尾（测完推回干净版），复刻可疑判定逻辑并把中间量 `console.log('[P2]' + JSON.stringify(...))`，`adb logcat -d` 取证：
+
+- 探针挂 `scroll`（capture, 捕获阶段 + 350ms 合帧）可实时跟踪几何变化；
+- 0.1.9 前的「滚回顶部不回显」bug 即由此定位：探针证明页面**静止**时标题顶各页在 8~56px 浮动，绝对阈值 `top < 40` 把静止态误判成已滚动 → 改 topGap 相对判据。
+
+### 6.3 UI 自动化要点
+
+- `input tap/swipe` 坐标是**物理像素**；软键盘弹起后底部条整体上移，「更多」等键的纵坐标会变（K70 实测 y 3118 → 1780）。
+- 验证浮层时序用双截图法：动作后 0.4s 抓中间帧（键盘/过渡态）+ 1.5s 抓终态。
+
+## 7. 已知限制与回退
+
+| 限制 | 原因 | 缓解 |
+|---|---|---|
+| 系统边缘返回无法拦截 | WebView 无系统手势权限 | 打开区扩到左 40% 屏宽 |
+| 官方重渲染可能掉锚点属性 | 插件不拥有官方 DOM | sync* 幂等重打；MutationObserver 兜底 |
+| 锚点失败 | 官方改版 | 打标失败不阻断启动，对应功能静默降级 |
+| 桌面端不激活 | 原生窗控/鼠标交互与移动布局冲突 | 宿主判据硬性排除 |
+| 回退 | — | 卸载插件或 `dispose()` 即还原；样式全在 scoping 属性之下，不残留 |

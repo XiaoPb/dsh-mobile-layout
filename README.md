@@ -8,6 +8,8 @@
 
 **DSH 手机竖屏布局插件（v0.1.9）**
 
+文档：[架构文档](docs/architecture.md) ｜ [技术说明](docs/technical-notes.md) ｜ [English](README.en.md)
+
 一个 Cordis 插件，让 DSH Web 客户端在**手机竖屏**下变成单手可操作的触控布局——**不修改官方内核、不替换官方布局插件**。仅识别手机竖屏形态，横屏 / 平板 / 桌面保持官方原样，像素级不变。
 
 ---
@@ -84,7 +86,7 @@ npm test          # 仅单测（55 项）
 npm run pack:dry  # 查看将发布的文件
 ```
 
-推 `v*` tag 即触发 Release（npm Trusted Publishing / `NPM_TOKEN` 兜底，发布后轮询确认公开）。真机验收（MuMu）需设备，按 `docs/mobile-ux-plan-0.6.md` 手动完成。
+推 `v*` tag 即触发 Release（npm Trusted Publishing / `NPM_TOKEN` 兜底，发布后轮询确认公开）。真机验收需设备，按 `docs/technical-notes.md` 第 6 节手动完成。
 
 ## 许可证
 
