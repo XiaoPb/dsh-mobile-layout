@@ -333,3 +333,21 @@ mobile-open --(遮罩 / Esc / 左滑 / 选中项)--> mobile-closed
 3. 插件快捷面板的排序与置顶规则（最近使用 / 手动置顶 / 按插件顺序）。
 4. Android 原生返回键是否需要容器侧配合（插件只能覆盖 Web 内路径）。
 5. 右上 `headerAction` 的可选项与 `⋯` 代理失败时的降级优先级。
+
+## 11. 界面截图
+
+截图环境：插件 0.5.12，MuMu 模拟器物理 720×1280、dpr2、页面缩放 0.9（CSS 视口 400×711）。图片存放在 [assets/screens](assets/screens)，与第 5 章各小节一一对应。整机截图顶部深色圆角条为宿主（DSH 手机端）的「引擎已就绪」悬浮状态条，会压住页面最上缘；面板页的浮动 ☰ 因此只露出左下部分，属宿主浮层遮挡，不是插件定位错误。
+
+| 截图 | 对应规格 | 说明 |
+|---|---|---|
+| [empty-session.png](assets/screens/empty-session.png) | 5.2.2、5.4 | 空会话：hero（图标 + 「探索未至之境」）在信息页面居中；1px 分界线（物理 y≈972）落在输入卡上方紧邻的 workspaces / 标准模式行顶；输入卡贴底、输入框压到 24px 行高；底部 6 键常驻条完整 |
+| [conversation.png](assets/screens/conversation.png) | 5.2.2、5.4 | 发送 hello 后的会话：workspace 行消失，分界线回到会话态输入座顶端（物理 y≈1037）；统计状态带在标题栏下方，输入行右侧为 `V4.1 · H` 短名 |
+| [drawer.png](assets/screens/drawer.png) | 5.1 | 左缘右滑打开抽屉：宽度 280px，官方侧栏导航完整保留（新会话、插件、自动化任务、SSH 工作区等），右缘与「收起侧边栏」按钮留 12px 内边距 |
+| [sheet-add.png](assets/screens/sheet-add.png) | 5.2.3 | ⊕ 贴底宫格：文件 / 目标 / 计划 / 反馈 与 压缩 / 权限 / 模型 / 下载日志 两行，与常驻条同表面、仅一条分隔线 |
+| [sessions-sheet.png](assets/screens/sessions-sheet.png) | 5.2.2 | 底部会话表：按工作区与时间排列，当前会话带「当前」标记 |
+| [popover-permission.png](assets/screens/popover-permission.png) | 5.4 | 输入行左侧权限 chip 打开的选项表：仅可查看 / 工作区内修改 / 完全权限 |
+| [menu-workspace-up.png](assets/screens/menu-workspace-up.png) | 5.4 | workspaces 选择菜单向上弹出（菜单项位于 chip 行上方），不再压住输入卡 |
+| [menu-mode-up.png](assets/screens/menu-mode-up.png) | 5.4 | 模式选择菜单同样向上：标准 / PTC / 极简 / 创造 四项完整可见，点选后 chip 即时更新 |
+| [panel-plugins.png](assets/screens/panel-plugins.png) | 5.2 | 插件全局面板：无会话头时左上角浮动 ☰ 兜底，页头首行与标题右移让位 |
+| [panel-automation.png](assets/screens/panel-automation.png) | 5.2 | 自动化任务面板：已开启 / 已结束 切换、搜索、新建入口均保留，☰ 与页头对齐 |
+| [panel-ssh.png](assets/screens/panel-ssh.png) | 5.2 | SSH 工作区面板：列表与「＋ 新建服务器」；☰ 按页头几何判定定位，不随标题行高变化错位 |
