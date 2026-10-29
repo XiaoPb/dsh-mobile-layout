@@ -406,12 +406,23 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 1. **抽屉 `role=dialog` 常驻**：原实现一进手机形态就挂 `role=dialog`，只按开合切 `aria-modal`。但收起后的侧栏只是 `translateX(-104%)` 的离屏元素，仍留在无障碍树里，读屏会在一段看不见的内容上念「对话框」。改为**仅在展开时**补 role / `aria-label` / `aria-modal`，收起立即还原；官方属性按节点记录，React 重挂侧栏节点时先还原旧节点、再对新节点重新取值。
 2. **每帧重复 prune**：observer 先 `prunePopoverMarks()`，进 `tagComposerMenus()` 又清一遍，同一帧两次全文档查询 + rect 测量。给 `tagComposerMenus(marksPruned)` 加参数，observer 传 `true`。
 
-### 10.3 待真机验证
+### 10.3 真机验证结果（2026-10-29，MuMu 720×1280 / CSS 400×711）
 
-| 项 | 方法 | 关注点 |
+取证方式：`adb exec-in run-as` 把 bundle 推入 `files/dsh-home/plugins/dsh-mobile-layout/lib/`，在**设备侧** bundle 末尾追加只读探针（不参与插件逻辑），按 `click` / `keydown` 采样 `data-dshm-mode`、无障碍属性、`activeElement`、`getComputedStyle` 的 `transition-duration`，经 logcat（`DshWebView: console/LOG`）回传；测完再推回发布版并核对 `md5`（`79c0c40…`，`grep PROBE` = 0）。视频/音频不在取证范围，读屏只核对无障碍树属性与焦点落点，未录 TalkBack 语音。
+
+| 项 | 结果 | 实测数据 |
 |---|---|---|
-| 底部表读屏 | TalkBack：开「会话」→ 滑动遍历 → 关闭 | 焦点是否落在关闭按钮；关闭后是否回到常驻条的「会话」 |
-| 抽屉读屏 | TalkBack：开抽屉 → 滑动遍历 → 关闭 | 展开时是否作为对话框播报；收起后侧栏不应再被念成 dialog |
-| 键盘 Tab（平板 + 外接键盘） | Tab / Shift+Tab 循环 | 底部表与抽屉内 Tab 会不会被背后内容打断（当前未做焦点陷阱，靠 `aria-modal` 约束读屏） |
-| 减少动态效果 | 开发者选项把动画缩放调到 0.5x / 关闭，或仿真 `prefers-reduced-motion` | 抽屉、遮罩、宫格、圆点四类动效应无过渡，终态与开启动效时一致 |
-| 侧栏 `role` 覆盖 | 与官方布局对照 | 展开期间官方侧栏语义被临时替换；若官方自身逻辑依赖该 role，可退到「只保留焦点管理、不加 role」 |
+| 底部表焦点进出 | ✅ 通过 | 打开：`activeElement = button.dshm-sheet-close`（「关闭」）；关闭：回到 `button.dshm-bar-btn`（「会话」）。面板 `role=dialog`、`aria-modal=true`、`aria-label=会话`、`tabindex=-1`，几何 `0,375,400,280` |
+| 抽屉读屏语义 | ✅ 通过 | 收起：`role / aria-modal / aria-label` 全为 `null`（离屏 `translateX(-291.72)` 不再被念成对话框）；展开：`role=dialog`、`aria-modal=true`、`aria-label=侧栏`、`0,0,281,711`；再收起全部还原 `null` |
+| 键盘 Tab 顺序 | ⚠️ 确认限制 | 关闭按钮 → 4 个会话行 → `body` → 背后内容（新建会话 / 插件 / 自动化任务 / SSH 工作区，即离屏的官方侧栏）。无焦点陷阱，Tab 会离开面板；`aria-modal` 只约束读屏，不约束键盘。Shift+Tab 同样可逆行逃出 |
+| 减少动态效果 | ✅ 通过 | `Settings.Secure.accessibility_reduce_motion=1` 后 `matchMedia('(prefers-reduced-motion: reduce)')` 为 `true`；侧栏 `0.22s→0s`、遮罩 `0.16s→0s`、翻页圆点 `0.18s→0s`；终态几何不变（侧栏 `0,0,281,711`、圆点 `189,702,12×5`、常驻条 `y 655→452`） |
+| 侧栏 `role` 覆盖 | ✅ 无副作用 | 展开期间点击会话行正常导航、抽屉按设计自动收起、焦点回到 ☰；官方列表滚动与点击无异常 |
+
+顺带复核的两项（本轮一并取证）：
+
+| 项 | 结果 | 实测数据 |
+|---|---|---|
+| 弹层标记清理 | ✅ 通过 | 打开模型菜单 → 点击空白关闭 → 开抽屉 → 一次返回：抽屉关闭、应用存活、画面与会话页逐字节一致；`sheet / drawerMask` 均为 `null`，`data-dshm-popover` 未残留 |
+| 非手机形态回归 | ✅ 通过 | `wm size 900x1000`（CSS 500×556）：`data-dshm-mode=default`、侧栏回到官方 56px 轨道、常驻条与浮层节点全部消失（`barBtn=null`）、输入卡恢复官方圆角样式 |
+
+**待办（本轮未改）**：Tab 逃出面板是 10.3 表格里唯一未闭环项。若要闭合，需要在 `.dshm-sheet` 与 `[data-dshm-sidebar]` 内做焦点陷阱（拦截 Tab/Shift+Tab 在首尾元素间回环，并在关闭时还原焦点——还原逻辑已具备）。改动约 30 行，可单测覆盖边界，建议单独一版做。
