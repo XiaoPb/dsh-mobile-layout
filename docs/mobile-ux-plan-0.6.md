@@ -106,13 +106,14 @@ PANEL   8,120 385x391        ← 浮在页面中上部的小窗，不是全屏
 ### 2.2 设置页
 
 1. 面板 `inset: 0`，宽高 100%，四角 0 圆角，无投影；遮罩隐藏（全屏即遮罩）。
-2. 顶部：tab 横滑条（高 52，chip ≥44 高，激活项自动滚入视野）+ 工具行（高 48，关闭按钮 44×44）。
+2. 顶部：tab 横滑条（高 52，chip ≥44 高，激活项自动滚入视野）+ 工具行（高 48，关闭按钮 44×44）；页签条最左放 44×44 返回键。
 3. 内容区：`flex: 1`，单列滚动，可视高度 ≥560px（400×711 下），`overscroll-behavior: contain`，底部补安全区。
 4. 所有可点元素热区 ≥44×44（tab / 关闭 / 开关 / 下拉 / 主按钮）；视觉尺寸不做无谓放大。
 5. 外观主题 3 列一行；`通用设置` 1207px 内容在 ≥560px 视口内滚动顺畅、无横向溢出（`scrollWidth == clientWidth`）。
 6. 6 个 tab（账号与余额 / 通用设置 / 模型 / 内置插件 / Agent 预设 / 桌宠配置）逐一巡检：无横向溢出、无逐字竖排、无被裁切控件。
 7. 打开设置自动收起抽屉、隐藏底部常驻条；关闭后恢复。
-8. Android 返回键 / Esc 关闭设置页（走官方关闭按钮，不改官方状态）。
+8. 退出设置页：左上返回键一次关闭（`app.dsh.mobile` 的系统返回键不进 WebView，见 4.7）；Esc 同样关闭（走官方关闭按钮，不改官方状态）。
+9. 页签除了点，还能在内容区左右横滑切换：阈值 48px、以纵向为主的手势不认、首尾不循环、换页后页签自动居中。
 
 ---
 
@@ -271,6 +272,37 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 - 关闭方式：加号面板与 ⋯ 菜单都给 `body` 派发一次 `pointerdown`（等同于官方「点击外部关闭」），再兜底清标记；
 - **关闭过渡闸门**：`popstate` 消费掉栈条目后进入 `closingOverlay`，此时浮层还在跑关闭动画、`overlayVisible()` 仍为 true，若照常 `pushState` 会多压一条，下一次返回被它空转掉（真机复现：设置页第一次返回只切了页签）。闸门在浮层真正消失后解除，并带 700ms 兜底重算，避免关闭没生效时锁死返回栈。
 
+### 4.7 设置页返回键与横滑换页签（实施中追加）
+
+**测量先行**：`app.dsh.mobile`（Android 12 / WebView）上按 `input keyevent 4` 时，页面里既收不到 `popstate` 也收不到 `keydown`，`dumpsys` 显示 Activity 退到后台、任务仍在 recents（`am start` 提示「task brought to the front」）。探针同时确认：设置打开时 `history.length = 2`、`history.state = {dshmOverlay:true}`（说明条确实压进去了），`window` 上只有 `DshAndroidClipboard` / `DshAndroidDownloader` 两个桥，没有返回通道。**结论：系统返回键在页面侧拦不住**，4.6 的 `popstate` 逻辑只在能被 `history.back()` 触达的环境（浏览器、桌面壳）成立，手机端必须给一个界面入口。
+
+- 返回键：`<button data-dshm-settings-back aria-label="返回|Back">`，44×44、圆角 12、箭头 22px，插在**页签行最左**；
+  - 为什么不放品牌行：品牌行在屏幕最顶端，宿主「引擎已就绪」悬浮条展开时正好覆盖 CSS `y 11–47` 整行（原生 View 在 WebView 之上，实测点上去事件被吃掉）；页签行在 `y 56` 以下，任何形态都碰不到。
+  - 出口统一：`closeSettingsByBack()` = 点官方 `[data-dshm-settings-close]`（不直接改官方状态）→ 找不到才 `clearSettingsPanel()`；系统返回（`popstate`）与 Esc 都走它。
+  - 生命周期：`clearSettingsPanel()` 与 `dispose` 都连节点一起移除，避免下次打开叠出第二个箭头。
+  - 只插节点不改 React 状态，官方重渲染时若把节点挪走，下一次 `tagSettings` 会重新摆位置（幂等）。
+- 横滑换页签：`touchstart` 记起点（必须落在 `[data-dshm-settings-scroll]` 内，且不在输入类控件里、祖先没有横向滚动块），`touchend` 判方向 → `switchSettingsTab(±1)` 点相邻官方页签；
+  - 判据：`swipeDirection(dx, dy)` —— `|dx| ≥ 48` 且 `|dy| ≤ |dx| × 0.72`，左滑 `+1`、右滑 `-1`；
+  - 目标下标：`nextTabIndex(index, delta, count)` —— **只钳不绕**（末页再左滑 / 首页再右滑返回 `-1`），`index` 找不到激活项时按第 0 项起算；
+  - 激活项识别沿用 `centerSettingsTab` 的四条判据（`aria-selected` / `aria-current` / `data-state=active` / `is-active`），都认不出时取离页签条视口中心最近的一项；
+  - 反馈：换页时给内容区打 `data-dshm-settings-swap` 播一次 0.18s 淡入（只动透明度，避免 `transform` 给内部浮层造新的包含块），`prefers-reduced-motion` 下整条动画去掉；
+  - 手势超时 900ms 不换页（长按选择文字 / 调值时误触发）。
+- 实测（CSS 400×711，物理 720×1280）：返回键 `rect = [4,62,44,44]`，页签条 `[52,56,349]`；点返回键后截图与关闭前逐字节一致（`md5` 相同）、`topResumedActivity` 仍是 `app.dsh.mobile`；左滑 账号 → 通用设置 → 模型 → 内置插件 逐级前进，右滑逐级回退，首页再右滑画面不变；内容区竖滑（`360,900 → 360,400`）只滚动列表、页签不动；页签条自身横滑仍是滚动页签。
+
+### 4.8 加号面板图标配色（实施中追加）
+
+**需求**：宫格里每个功能一个颜色，后续新增的功能也要自动有颜色；同类型可以同色；颜色从蓝 / 橙 / 紫 / 绿里挑业内常用的搭配色，不要正色。
+
+- 配色表 `ADD_TINTS`：4 族 × 3 档 = 12 个色值，写在常量区，`{ name, fg, soft }`。**排列按族交错**（蓝橙紫绿、蓝橙紫绿…），因为色位是按哈希位就近探测的，交错能让相邻色位天然跨色相。
+  - 蓝 `#4C7DF0` / `#3F6FD8` / `#5B8DEF`，橙 `#D9773B` / `#D98A3E` / `#C96F45`，紫 `#8A6FE8` / `#7C63D8` / `#9273E4`，绿 `#2FA57B` / `#37A06B` / `#2E9E86`；
+  - 约束：饱和度 40%~75%、HSL 明度 38%~70%，避开 `#0000FF` / `#FF8800` / `#00AA00` 这类正色，24px 线性图标在浅色与深色底上都不糊（单测逐条校验）；
+  - `soft` 是同色相 15% 的 `rgba`，给图标当胶囊底；不用 `color-mix` 是为了兼容 Android 12 上那版 WebView（Chrome 100 左右）。
+- 类型键：`addOptionKey(texts, group)` —— 优先用官方选项的**别名**（第二段文本，实测 `file` / `goal` / `plan` / `feedback` / `compact` / `permission` / `model` / `export` / `balance` / `chat` / `pet`），它等同命令 id、新增功能自带、不随界面语言变；没有别名时退回名称，再退回分组标题。
+- 分配：`planAddTints(entries, 12)` 纯函数 —— 同一类型键复用同一色位（同类型同色）；新键从 FNV-1a 哈希位起线性探测一个未占用色位（同屏不撞色）；色板用尽落回哈希位。因为结果只取决于功能集合，**关闭重开、重启应用颜色都一样**，不是每次刷新乱跳。
+- 落地：`applyAddTint()` 只在图标 `span:first-child` 上写两个 CSS 变量并把色板名记进 `data-dshm-tint`（值没变就跳过），svg 内部是 `currentColor`，所以不碰官方节点结构、不改 `fill/stroke`；CSS 侧 `background: var(--dshm-tint-soft, 官方灰底)` + `color: var(--dshm-tint, inherit)`。
+- 清理：`clearAddPaging()` 连 `data-dshm-tint` 与两个变量一起清，面板关闭 / 卸载不留痕。
+- 实测（物理 720×1280 / CSS 400×711）：11 项占满 12 色板中的 11 个不同色位，浅色与深色主题下颜色一致且清晰；关闭重开、重启应用后逐一比对颜色未变。
+
 ---
 
 ## 5. 代码改造点（`lib/client.js`，单文件产物）
@@ -295,7 +327,7 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 
 | 阶段 | 内容 | 结果 |
 |---|---|---|
-| **M1** 纯函数 + 单测 | `rowsFor` / `slotOf` / `planAddPages` / `isSettingsDialog`；`npm run check` 全绿 | `test/ux.test.js` 30 项全过（0/1/4/5/8/9/11/16/17/24 项、非法输入、跨 realm 数组比较；另含工作区分组与相对时间 3 项）；0.6.0 之后补 10 项（原型键目录名分组、会话行 id 归一 / 当前会话置顶 / blank 过滤 / 不改源数组、`STRINGS` 中英键一致、翻页 `aria-label`、抽屉点击收起真值表 2 项），合计 40 项 |
+| **M1** 纯函数 + 单测 | `rowsFor` / `slotOf` / `planAddPages` / `isSettingsDialog`；`npm run check` 全绿 | `test/ux.test.js` 30 项全过（0/1/4/5/8/9/11/16/17/24 项、非法输入、跨 realm 数组比较；另含工作区分组与相对时间 3 项）；0.6.0 之后补 10 项（原型键目录名分组、会话行 id 归一 / 当前会话置顶 / blank 过滤 / 不改源数组、`STRINGS` 中英键一致、翻页 `aria-label`、抽屉点击收起真值表 2 项），合计 40 项；设置页返回键与横滑换页签再补 3 项（`swipeDirection` 方向真值表、`nextTabIndex` 只钳不绕、`STRINGS.back` 中英），合计 43 项 |
 | **M2** 加号面板分页 | 显式行列定位 + 页宽吸附 + 圆点指示 | 11 项（过滤「文件」后 10 项）→ 2 行 ×4 列 ×2 页；面板高恒 203px；`scrollLeft` 0↔393、`scrollWidth` 785；一页一次手势 |
 | **M3** 设置页全屏 | 打标 + 外壳 CSS + 品牌行 + 抽屉互斥 + 常驻条隐藏 | 面板 `0,0,401,712`；`HEAD 0,56,401,48`；`SCROLL 0,104,401,608` |
 | **M4** 内容区细节 | 页签 chip、工具行、行布局、开关热区、外观宫格 | 6 个 chip 均高 40；工具按钮 32、「关闭」44×44；`scrollWidth == clientWidth == 401`；外观窄屏两列 |
@@ -319,9 +351,11 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 | 6 个 tab 巡检 | 逐个 tap + 截图 | 账号与余额 / 通用设置 / 模型 / 内置插件 / Agent 预设 / 桌宠配置：无裁切、无竖排、无横向溢出 |
 | 页签横滑 | `input swipe` + 截图 | `scrollWidth 710 > clientWidth 401`；激活项自动居中（`sl=0→98→200→310`） |
 | 触控热区 | 截图 + 测点 | 页签 chip 40、关闭 44×44、工具按钮 32、开关/下拉已补热区 |
-| 返回键（设置） | `input keyevent 4` | 一次关闭、应用存活；连测 6 轮均为一次关闭 |
-| 返回键（加号面板 / ⋯ 菜单） | 同上 | 一次关闭、不退出应用；若宿主「引擎已就绪」浮条正展开，第一次返回会被它吃掉（应用原生行为），收起后再按即关 |
-| 关闭后无残留 | 关闭后 dump + 截图 | 品牌行节点一并移除，常驻条回到原位 |
+| 返回键（设置，界面按钮） | `input tap 46 151` | 一次关闭、`topResumedActivity` 仍是 `app.dsh.mobile`；关闭后截图与关闭前 `md5` 一致 |
+| 页签横滑换页 | `input swipe 600 700 → 100 700`（左）/ 反向（右） | 左滑 账号→通用设置→模型→内置插件；右滑逐级回退；首页再右滑画面不变；竖滑只滚动不换页 |
+| 返回键（系统 / `keyevent 4`） | 探针 + `dumpsys` | **不进入 WebView**：无 `popstate`、无 `keydown`，Activity 退到后台（`history.length=2`、`state={dshmOverlay:true}` 已压条也无效）。手机端以界面返回键为准，见 4.7 |
+| 返回键（加号面板 / ⋯ 菜单） | 同上 | 同上：系统返回不进 WebView，需靠点外部 / Esc / 遮罩关闭 |
+| 关闭后无残留 | 关闭后 dump + 截图 | 品牌行与返回键节点一并移除，常驻条回到原位；再次打开只有一个返回箭头 |
 | 会话面板分组 | 探针（假三段工作区）+ 截图 | 组标题 11px 灰字 + 右侧组内条数，会话行缩进 24px；滚动时组标题吸顶、背景不透明、无半行裁切 |
 | 会话面板高度 | logcat 打印 sheet/list 几何 | `max-height` 426.6px（711×60%）；内容 4 行时 `sheet h=236`、`list clientHeight = scrollHeight = 176`，不硬撑、无空滚动；20 行假数据时撑到上限并可滚动 |
 | 顶部悬浮条避让 | 同上 | 上限内 `sheet top = 419`（> 悬浮条下沿 57）；内容超长时也不会钻进悬浮条 |
@@ -373,7 +407,7 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 
 ## 10. 0.6.0 之后的修复与复核（2026-10-29）
 
-0.6.0 发布后按「阻断 → 高优 → 清理」把 `lib/client.js` 全量重审了一遍，共 18 个修复（版本号仍是 `0.6.0`，发版建议 `0.6.1`）。
+0.6.0 发布后按「阻断 → 高优 → 清理」把 `lib/client.js` 全量重审了一遍，共 21 个修复（版本号仍是 `0.6.0`，发版建议 `0.6.1`）。
 
 ### 10.1 修复清单
 
@@ -394,10 +428,14 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 | 13 | a11y | 底部表有 `role=dialog` 但无 `aria-modal`、打开后焦点仍在背后；抽屉无焦点管理 | 表补 `aria-modal` + 焦点进出；抽屉展开时补 `role` / `aria-label` / `aria-modal` 并把焦点送进侧栏（跳过输入框，免得弹软键盘） |
 | 14 | a11y | 插件自建动效不响应系统「减少动态效果」 | `@media (prefers-reduced-motion: reduce)` 关过渡与动画，终态保留 |
 | 15 | 交互 | 抽屉内「点哪都收」：只要点在侧栏里就收起，空白、搜索、视图选项、添加工作区、账号菜单、行内「… 操作」都会把抽屉收走，想继续挑就得重新打开 | 只认真正换页的点击：会话 / 工作区行（`role=treeitem`，带 `aria-expanded` 的分组头除外）与带文字的导航按钮（新建会话 / 插件 / 自动化任务 / SSH 工作区）；纯图标按钮改由「选中行 + 面板 + 路由」签名判定，真换页才收；判定抽成纯函数 `sidebarClickAction()`，补 2 项真值表用例 |
+| 16 | 交互 | 设置页在手机端铺满整屏，唯一出口是右对齐工具行里那个 ✕（和「打开配置文件」挤在一起）；系统返回键又进不了 WebView | 页签行最左插 44×44 返回键（`data-dshm-settings-back`，`aria-label` 跟随语言），出口统一到 `closeSettingsByBack()` → 点官方关闭按钮；关闭 / 卸载连节点一起摘掉 |
+| 17 | 交互 | 设置页六个页签只能点顶部 chip，窄屏下右侧页签还要先把页签条横滑出来 | 内容区左右横滑换页签：`|dx| ≥ 48` 且 `|dy| ≤ 0.72|dx|`，`nextTabIndex` 只钳不绕，换页后 chip 自动居中 + 内容 0.18s 淡入 |
+| 18 | 视觉 | 加号面板的功能图标一律灰底灰图标，11 个功能长得一样，只能靠文字区分 | 按功能别名上色：12 档蓝 / 橙 / 紫 / 绿柔和色（同色相 15% 柔光底 + 实色描边），同类型同色、同屏不撞色；`ADD_TINTS` 是唯一配色表，新增功能按哈希自动落位 |
+| 19 | 视觉 | 「更多」宫格里点「模型 / 权限」弹出的选择器被通用宫格 CSS 压成 4 列：分组被挤成 147px 窄列且偏移到屏幕左缘外（x=-16），权限卡片只剩 91px 宽、英文描述整行截断，底部还残留宫格的翻页圆点 | surface 内带搜索框的浮层打 `data-dshm-picker`，CSS 用更高优先级选择器翻回整行列表：圆角搜索行、分组小标题、选项行 = 标题（单行省略）+ 描述（可换行、左对齐、灰字）+ 选中高亮（`aria-selected/checked`，主题蓝：同色 10% 柔光底 + 蓝标题 + 蓝对勾）+ 靠右对勾；段落角色由 `tagPickerOptions()` 按内容（含 svg 即对勾）标记，官方重渲染后每次同步重打；宫格换成选择器时若旧宫格节点已卸载，连分页圆点状态一起撤 |
 
 ### 10.2 复核方式与结论
 
-- `node --check lib/client.js` + `npm test`（38 项）+ `npm run check`（包清单 / bundle 契约自检）全绿；
+- `node --check lib/client.js` + `npm test`（47 项）+ `npm run check`（包清单 / bundle 契约自检）全绿；
 - 17 个提交逐个用 `git worktree` 检出后跑 `npm test` + `verify-package`，中间态没有一个被破坏；
 - 把 `CSS_TEXT` 反解成数组实际 `join('\n')`：**847 行、花括号 125/125 平衡**，`@media` 块落在末尾且结构完整；
 - `verify-package` 的版本校验做过负向验证：临时把常量改成 `0.6.1`，脚本打印 `0.6.1 vs 0.6.0` 并以退出码 1 结束，还原后 ALL PASS。
@@ -425,5 +463,8 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 |---|---|---|
 | 弹层标记清理 | ✅ 通过 | 打开模型菜单 → 点击空白关闭 → 开抽屉 → 一次返回：抽屉关闭、应用存活、画面与会话页逐字节一致；`sheet / drawerMask` 均为 `null`，`data-dshm-popover` 未残留 |
 | 非手机形态回归 | ✅ 通过 | `wm size 900x1000`（CSS 500×556）：`data-dshm-mode=default`、侧栏回到官方 56px 轨道、常驻条与浮层节点全部消失（`barBtn=null`）、输入卡恢复官方圆角样式 |
+| 图标配色 · 浅色 | ✅ 通过 | 第一页：目标 蓝 / 计划 橙 / 反馈 蓝 / 压缩 紫 · 权限 蓝 / 模型 橙 / 下载日志 紫 / 余额 绿；第二页：对话 绿 / 桌宠 橙；11 项落在 12 色板的 11 个不同色位，四族齐全（`role=option` 的 `span:first-child` 内联 `--dshm-tint` / `--dshm-tint-soft`，svg 走 `currentColor` 继承） |
+| 图标配色 · 深色 | ✅ 通过 | 切到深色主题后同一批图标颜色不变（同类型同色：目标仍蓝、计划仍橙、模型仍橙、余额仍绿），15% 柔光底在深色面板上呈现为同色相暗底，24px 描边清晰可辨 |
+| 配色稳定性 | ✅ 通过 | 关闭面板再打开、以及强制重启应用后，每个功能的颜色与首次一致（该色位来自别名哈希，不是每次随机）；面板关闭时 `data-dshm-tint` 与两个 CSS 变量随 `clearAddPaging` 一并清除 |
 
 **待办（本轮未改）**：Tab 逃出面板是 10.3 表格里唯一未闭环项。若要闭合，需要在 `.dshm-sheet` 与 `[data-dshm-sidebar]` 内做焦点陷阱（拦截 Tab/Shift+Tab 在首尾元素间回环，并在关闭时还原焦点——还原逻辑已具备）。改动约 30 行，可单测覆盖边界，建议单独一版做。
