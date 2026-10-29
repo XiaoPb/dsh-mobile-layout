@@ -42,6 +42,8 @@ const {
   groupSessionsByWorkspace,
   formatRelativeTime,
   normalizeWorkspacePath,
+  sessionRows,
+  sessionRowId,
   ADD_COLS,
   ADD_MAX_ROWS,
 } = loadClient().__test
@@ -291,4 +293,50 @@ test('workspaceTitleMap：标题为原型键名不影响其它键的取值', () 
   assert.equal(workspaceNameFor('/w/a', map), '__proto__')
   assert.equal(workspaceNameFor('/w/b', map), 'constructor')
   assert.equal(workspaceNameFor('/w/c', map), '')
+})
+
+test('sessionRowId：id 优先，只有 sessionId 也能取到', () => {
+  assert.equal(sessionRowId({ id: 'a', sessionId: 'b' }), 'a')
+  assert.equal(sessionRowId({ sessionId: 'b' }), 'b')
+  assert.equal(sessionRowId({}), null)
+  assert.equal(sessionRowId(null), null)
+})
+
+/**
+ * 回归：官方快照的行可能只有 sessionId；面板渲染只认 row.id，不归一化会
+ * 出现「当前会话不标记 + 点击打开 undefined + React key 为空」。
+ */
+test('sessionRows：只有 sessionId 的行也归一化出 id，当前会话置顶', () => {
+  const { rows, currentId } = sessionRows({
+    byId: {
+      a: { sessionId: 'a', title: 'A', updatedAt: 3 },
+      b: { id: 'b', title: 'B', updatedAt: 2, retainedBy: { mainView: 1 } },
+      c: { sessionId: 'c', blank: true, updatedAt: 5 },
+    },
+  })
+  assert.equal(currentId, 'b')
+  assert.deepEqual(arr(rows.map((row) => row.id)), ['b', 'a'])
+  // 原对象上的字段不能丢
+  assert.equal(rows[1].sessionId, 'a')
+  assert.equal(rows[1].title, 'A')
+})
+
+test('sessionRows：current 会话即使 blank 也保留，其余 blank 过滤', () => {
+  const { rows } = sessionRows({
+    items: [
+      { id: 'x', blank: true, retainedBy: { mainView: 1 }, updatedAt: 1 },
+      { id: 'y', blank: true, updatedAt: 2 },
+      { id: 'z', updatedAt: 4 },
+    ],
+  })
+  assert.deepEqual(arr(rows.map((row) => row.id)), ['x', 'z'])
+})
+
+test('sessionRows：输入非法时返回空表，不改动调用方数组', () => {
+  assert.deepEqual(arr(sessionRows(null).rows), [])
+  assert.equal(sessionRows(null).currentId, null)
+  const source = [{ id: '1', updatedAt: 1 }]
+  const snapshot = { items: source }
+  sessionRows(snapshot)
+  assert.equal(source.length, 1)
 })

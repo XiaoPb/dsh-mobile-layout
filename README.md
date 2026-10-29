@@ -87,7 +87,7 @@ dsh plugin --profile web add @xiaopb/dsh-mobile-layout
 
 ```sh
 npm run check     # node --check lib/client.js → 单测 → 包清单 / bundle 契约自检
-npm test          # 仅单测（32 项：形态判定滞回、权限 / 模型短文案、加号面板分页、设置页判据、工作区分组与相对时间）
+npm test          # 仅单测（36 项：形态判定滞回、权限 / 模型短文案、加号面板分页、设置页判据、会话行 id 归一、工作区分组与相对时间）
 npm run pack:dry  # 查看将发布的文件（prepack 会跑 verify-package）
 ```
 
