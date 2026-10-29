@@ -468,3 +468,44 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 | 配色稳定性 | ✅ 通过 | 关闭面板再打开、以及强制重启应用后，每个功能的颜色与首次一致（该色位来自别名哈希，不是每次随机）；面板关闭时 `data-dshm-tint` 与两个 CSS 变量随 `clearAddPaging` 一并清除 |
 
 **待办（本轮未改）**：Tab 逃出面板是 10.3 表格里唯一未闭环项。若要闭合，需要在 `.dshm-sheet` 与 `[data-dshm-sidebar]` 内做焦点陷阱（拦截 Tab/Shift+Tab 在首尾元素间回环，并在关闭时还原焦点——还原逻辑已具备）。改动约 30 行，可单测覆盖边界，建议单独一版做。
+
+## 11. 桌面端兼容：宿主识别与模式策略（0.1.7）
+
+### 11.1 问题
+
+插件此前没有任何宿主概念，唯一判据是视口几何（`classify()`：竖屏 + 短边 ≤600 / 滞回 640、长宽比 ≥1.25）。桌面端 DeepSeek Harness（Electron，`@deepseek-ai/dsh-desktop-runtime` 0.2.1-rc.3）：
+
+- 主窗口默认 1280×820，**最小 520×600**（可自由缩放）——缩到 ~520×700 即命中判定，移动布局整套 CSS 施加到桌面窗体上，样式错乱；
+- Windows 上 `titleBarStyle:"hidden"` + `titleBarOverlay:{height:40}`：原生最小化/最大化/关闭按钮以 40px 浮层压在网页右上角，网页须自行避让；移动模式的紧凑顶栏、统计细条、设置页工具行都落在这一区域，会被窗控盖住或点不到；
+- 官方 `header[data-window-drag]` 是 Windows 拖拽手柄，被移动模式重构后窄窗可能无处拖动窗口；
+- 抽屉左缘滑开、设置页横滑换页签都是 touch 事件，鼠标不触发；
+- ⋯ 菜单「右缘自校正」按 Android WebView 0.9 初始缩放补偿、设置页品牌行为 Android「引擎已就绪」悬浮条让位——桌面两者皆无，属错误校准。
+
+桌面 profile（`~/.dsh/profiles/desktop/package.json`）已把 `@xiaopb/dsh-mobile-layout` 列入 bundles，插件确实随桌面端 web UI 加载。
+
+### 11.2 宿主判据（自 app.asar 实锤）
+
+| 信号 | Android 壳 (app.dsh.mobile) | 桌面 (DeepSeek Harness) | 纯浏览器 |
+|---|---|---|---|
+| `window.dshDesktop` | ✗ | **✓ 无条件注入**（主框架=完整产品 API，iframe=`{protocolVersion:1}` 桩） | ✗ |
+| `location.protocol` | http(s) | **`dsh-app:`** | http/https |
+| `dshPlatform` / `dshDesktopBoot` / `__DSH_HOST_PATHS__` / `__DSH_LOCALE__` | ✗ | ✓（仅 `dsh-app://app` 主框架，不能单独当判据） | ✗ |
+| `DshAndroidClipboard` / `DshAndroidDownloader` | ✓ | ✗ | ✗ |
+| UA 含 `Electron/` | ✗ | ✓（main.js 无 UA 覆写；只作参考不作判据） | ✗ |
+
+### 11.3 实施
+
+- `detectHost(win)`：协议 `dsh-app:` → desktop；`window.dshDesktop !== undefined` → desktop（双判据防单点失效）；有 DshAndroid 桥 → android；否则 web。判定一次缓存（页面生命周期内宿主不变）。
+- `resolveMode(host, w, h, prev)`：`desktop` **恒返回 default**（永不进入 mobile，官方布局任何窗口尺寸像素级不变）；`android` / `web` 委托 `classify()` 维持原行为。
+- 判据全部失读时按 `web` 处理 = 回到旧行为，不比现状差。
+- 桌面端命中时 `console.info` 一次，便于现场排查。
+
+### 11.4 验证
+
+- 单测：detectHost（协议 / 主框架桥 / iframe 桩 / Android 桥 / 判据优先级 / 空窗口回退）+ resolveMode（桌面任意尺寸含 520×700、360×780 恒 default；android/web 委托 classify）共 7 例，全套 53 项通过；`verify-package` ALL PASS（bundle VERSION 0.1.7 与包一致）。
+- Android 回归：android 路径代码与 0.1.6 完全一致（`resolveMode` 只是委托），MuMu 真机复测一次布局激活即可。
+- 桌面验证：发布后把桌面 profile 升到 0.1.7，窄窗 520×700 / 900×700 / 最大化还原各一次，确认 `data-dshm-mode` 恒为 `default`、无任何样式介入。
+
+### 11.5 后续（二期，未实施）
+
+桌面移动布局真兼容：`navigator.windowControlsOverlay.getTitlebarAreaRect()` 避让窗控、Pointer Events 手势、Android 专属校准按宿主分叉、`cordis.patch.yml` config 开关（`desktop: off|auto|force`，默认 off）。

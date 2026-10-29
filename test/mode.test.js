@@ -32,7 +32,18 @@ function loadClient() {
   return captured
 }
 
-const { classify, permissionShort, modelShort, MODE_DEFAULT, MODE_MOBILE } = loadClient().__test
+const {
+  classify,
+  permissionShort,
+  modelShort,
+  MODE_DEFAULT,
+  MODE_MOBILE,
+  detectHost,
+  resolveMode,
+  HOST_DESKTOP,
+  HOST_ANDROID,
+  HOST_WEB,
+} = loadClient().__test
 
 test('常见手机竖屏进入 mobile', () => {
   const phones = [
@@ -83,6 +94,45 @@ test('横屏即使短边很小也不进入', () => {
 test('非法尺寸回退 default', () => {
   assert.equal(classify(0, 0, MODE_MOBILE), MODE_DEFAULT)
   assert.equal(classify(Number.NaN, 800, MODE_MOBILE), MODE_DEFAULT)
+})
+
+test('detectHost：dsh-app 协议识别为桌面端', () => {
+  assert.equal(detectHost({ location: { protocol: 'dsh-app:' } }), HOST_DESKTOP)
+  assert.equal(detectHost({ location: { protocol: 'https:' } }), HOST_WEB)
+  assert.equal(detectHost({ location: { protocol: 'http:' } }), HOST_WEB)
+})
+
+test('detectHost：dshDesktop 桥识别为桌面端（主框架与 iframe 桩都算）', () => {
+  assert.equal(detectHost({ dshDesktop: {} }), HOST_DESKTOP)
+  assert.equal(detectHost({ dshDesktop: { protocolVersion: 1 } }), HOST_DESKTOP)
+})
+
+test('detectHost：Android 桥识别为安卓壳', () => {
+  assert.equal(detectHost({ DshAndroidClipboard: {} }), HOST_ANDROID)
+  assert.equal(detectHost({ DshAndroidDownloader: {} }), HOST_ANDROID)
+  assert.equal(detectHost({ DshAndroidClipboard: {}, DshAndroidDownloader: {} }), HOST_ANDROID)
+})
+
+test('detectHost：桌面判据优先于 Android 桥，空窗口回退 web', () => {
+  assert.equal(detectHost({ location: { protocol: 'dsh-app:' }, DshAndroidClipboard: {} }), HOST_DESKTOP)
+  assert.equal(detectHost({ dshDesktop: {}, DshAndroidClipboard: {} }), HOST_DESKTOP)
+  assert.equal(detectHost({}), HOST_WEB)
+  assert.equal(detectHost(null), HOST_WEB)
+  assert.equal(detectHost(undefined), HOST_WEB)
+})
+
+test('resolveMode：桌面端任何尺寸都是 default（含能命中视口判定的窄窗）', () => {
+  assert.equal(resolveMode(HOST_DESKTOP, 520, 700, MODE_DEFAULT), MODE_DEFAULT)
+  assert.equal(resolveMode(HOST_DESKTOP, 520, 700, MODE_MOBILE), MODE_DEFAULT)
+  assert.equal(resolveMode(HOST_DESKTOP, 360, 780, MODE_DEFAULT), MODE_DEFAULT)
+  assert.equal(resolveMode(HOST_DESKTOP, 320, 568, MODE_DEFAULT), MODE_DEFAULT)
+})
+
+test('resolveMode：android / web 维持视口几何判定', () => {
+  assert.equal(resolveMode(HOST_ANDROID, 390, 844, MODE_DEFAULT), MODE_MOBILE)
+  assert.equal(resolveMode(HOST_WEB, 390, 844, MODE_DEFAULT), MODE_MOBILE)
+  assert.equal(resolveMode(HOST_WEB, 1280, 900, MODE_DEFAULT), MODE_DEFAULT)
+  assert.equal(resolveMode(HOST_ANDROID, 640, 360, MODE_DEFAULT), MODE_DEFAULT)
 })
 
 test('权限按钮 aria-label → 短文案', () => {

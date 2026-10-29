@@ -6,7 +6,7 @@
 [![Release](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/release.yml/badge.svg)](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/release.yml)
 [![npm](https://img.shields.io/npm/v/@xiaopb/dsh-mobile-layout?label=npm)](https://www.npmjs.com/package/@xiaopb/dsh-mobile-layout)
 
-**DSH 手机竖屏布局插件（v0.1.6）**
+**DSH 手机竖屏布局插件（v0.1.7）**
 
 一个 Cordis 插件，让 DSH Web 客户端在**手机竖屏**下变成单手可操作的触控布局——**不修改官方内核、不替换官方布局插件**。仅识别手机竖屏形态，横屏 / 平板 / 桌面保持官方原样，像素级不变。
 
@@ -31,7 +31,7 @@
 |---|---|
 | **零侵入** | 全部样式受 `data-dshm-mode="mobile"` 作用域保护，卸载或锚点失败即回退官方布局。 |
 | **单文件产物** | `lib/client.js` 即发布物，无构建、无运行时依赖。 |
-| **形态保守** | 只认手机竖屏，其余形态官方布局像素级不变，互不干扰。 |
+| **形态保守** | 识别三种宿主（Android 壳 / 桌面 Electron / 浏览器）；桌面端 DeepSeek Harness **永不激活**（任何窗口尺寸官方布局不变），其余形态只认手机竖屏、像素级不变。 |
 | **触控优先** | 44px 触控目标、滑动手势、单手可达。 |
 | **稳定配色** | 哈希落位，新增功能图标免改代码自动配色。 |
 | **真机验收** | MuMu 模拟器（720×1280）实机复核，CI 单测 38 项全绿。 |

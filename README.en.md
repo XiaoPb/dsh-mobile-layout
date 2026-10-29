@@ -6,7 +6,7 @@
 [![Release](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/release.yml/badge.svg)](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/release.yml)
 [![npm](https://img.shields.io/npm/v/@xiaopb/dsh-mobile-layout?label=npm)](https://www.npmjs.com/package/@xiaopb/dsh-mobile-layout)
 
-**DSH mobile portrait layout plugin (v0.1.6)**
+**DSH mobile portrait layout plugin (v0.1.7)**
 
 A Cordis plugin that turns the DSH web client into a one-handed, touch-first layout on **phone portrait** screens — **without modifying the official kernel or replacing the official layout plugin**. It only adapts the phone-portrait form; landscape, tablet and desktop keep the official layout pixel-for-pixel.
 
@@ -31,7 +31,7 @@ A Cordis plugin that turns the DSH web client into a one-handed, touch-first lay
 |---|---|
 | **Zero intrusion** | All styles are scoped under `data-dshm-mode="mobile"`; uninstall or anchor failure restores the official layout. |
 | **Single-file build** | `lib/client.js` is the shipped artifact — no build step, no runtime dependencies. |
-| **Conservative by form** | Only phone portrait is adapted; every other form keeps the official layout untouched. |
+| **Conservative by form** | Detects three hosts (Android shell / desktop Electron / browser); the desktop DeepSeek Harness app **never activates** the mobile layout at any window size, and other non-phone forms keep the official layout pixel-for-pixel. |
 | **Touch-first** | 44px touch targets, swipe gestures, one-handed reach. |
 | **Stable theming** | Hash-based tint assignment — new feature icons are colored automatically, no code change. |
 | **Verified on device** | MuMu emulator (720×1280) acceptance; 38 CI unit tests all green. |
