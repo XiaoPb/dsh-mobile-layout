@@ -24,7 +24,7 @@ A Cordis plugin that turns the DSH web client into a one-handed, touch-first lay
 - **Composer merged into the bottom panel**: flat, full-width, single 1px divider; tightened empty state; permission & model short-name chips stay on the input row (**"Full access" is always red**, in both Chinese and English).
 - **Fullscreen settings**: brand row + swipeable tabs + back button; swipe left/right on the content area to switch tabs.
 - **Restyled pickers**: model / permission sub-menus become bottom-sheet lists with the theme-blue selected state.
-- **Exclusive overlays + history stack**: drawer / bottom sheet / add panel never stack; closed layer-by-layer. The add panel is also mutually exclusive with the soft keyboard (opening it first drops composer focus, so panel and keyboard never share the screen).
+- **Exclusive overlays + history stack**: drawer / bottom sheet / add panel never stack; closed layer-by-layer. The add panel is also mutually exclusive with the soft keyboard in both directions (opening it first drops composer focus; tapping the input while the panel is open closes the panel first, and the keyboard rises only after the panel is gone).
 - **Accessibility & motion**: `aria-modal`, focus in/out, honors system "reduce motion".
 
 ## Why it's good

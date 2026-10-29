@@ -47,9 +47,10 @@ npm run pack:dry  # 预览发布文件清单
 
 根因链：输入法开着点 ⊕ → 官方打开面板还会**异步 refocus** 输入框 → 面板与软键盘同屏。只 blur 挡不住 refocus（实测真机「键盘拉起→收起→弹面板」体验交叉）。方案：
 
-1. `openOfficialAddMenu()` 点击官方按钮**前**把 composer 输入控件短暂置 `disabled` / `contenteditable=false`——`focus()` 在禁用元素上是 no-op，官方 refocus 直接落空，软键盘全程不拉起；600ms 后按原值恢复。
+1. `openOfficialAddMenu()` 点击官方按钮**前**经公共底座 `suppressComposerFocus(ms, onRestore)` 把 composer 输入控件短暂置 `disabled` / `contenteditable=false`——`focus()` 在禁用元素上是 no-op，官方 refocus 直接落空，软键盘全程不拉起；600ms 后按原值恢复。
 2. 120 / 250ms 各补一次 `blurComposer()`，兜底找不到控件的场景。
 3. `tagComposerMenus()` 的宫格分支兜底：面板打开 >800ms 且焦点仍在 composer 时收掉（800ms 内不动，避免和官方异步 focus 竞争；选择器带搜索框走 picker 分支，不受影响）。
+4. **反向互斥（0.1.10）**：面板开着点输入框，官方「点击外部关闭」会把关面板与聚焦同帧做掉——面板还在收起动画里键盘已顶上来。`closeAddMenuForComposerTap()` 在 document 捕获阶段截住对输入框的 pointerdown：主动 `closeOfficialAddMenu()` + `suppressComposerFocus(350)` 吞掉本次官方聚焦，350ms 后恢复输入并 `focusComposer()`——面板先收完、键盘随后拉起；期间用户若又打开面板则只恢复输入不抢焦点。
 
 ### 3.4 加号面板分页与配色
 
