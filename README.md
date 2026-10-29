@@ -1,5 +1,9 @@
 # dsh-mobile-layout
 
+[![CI](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/ci.yml/badge.svg)](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/ci.yml)
+[![Release](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/release.yml/badge.svg)](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/release.yml)
+[![npm](https://img.shields.io/npm/v/@xiaopb/dsh-mobile-layout?label=npm)](https://www.npmjs.com/package/@xiaopb/dsh-mobile-layout)
+
 **DSH 手机竖屏自适应布局插件（0.5.12）**
 
 DSH 的 Web 客户端目前没有移动端布局：窄屏时左侧栏只是被压缩成 56px 轨道，右侧栏在 768px 以下才自动全屏，整份前端 CSS 没有任何宽度媒体查询。本插件在不修改官方内核、不替换官方布局插件的前提下，把**手机竖屏**切换成适合触控的形态：
@@ -63,6 +67,24 @@ DSH 的 Web 客户端目前没有移动端布局：窄屏时左侧栏只是被�
 ```sh
 dsh plugin --profile web add @xiaopb/dsh-mobile-layout
 ```
+
+## 开发与发布
+
+本包无运行时 / 开发依赖，客户端是单文件产物（不需要构建），`lib/client.js` 即发布物。
+
+```sh
+npm run check     # node --check lib/client.js → 单测 → 包清单 / bundle 契约自检
+npm test          # 仅单测（9 项：形态判定滞回、权限 / 模型短文案）
+npm run pack:dry  # 查看将发布的文件（prepack 会跑 verify-package）
+```
+
+CI/CD 与 [dsh-mobile-compose](../dsh-mobile-compose) 保持一致：
+
+- `.github/workflows/ci.yml`：push / PR / 手动触发，Node 22 与 24 矩阵；依次执行依赖安装、`npm run check`、`npm pack --dry-run`、实际打包、`scripts/release-notes.sh` 结构校验，最后在干净目录里像消费者一样安装 tarball 并断言 `dsh.*` 元数据、`lib/client.js` 的 `__ModuleLoader__` 包装以及开发目录未进包。
+- `.github/workflows/release.yml`：推 `v*` tag 或手动触发。先校验 tag ↔ `package.json` 版本一致，再跑同一套自检；`scripts/publish-npm.sh` 优先走 npm Trusted Publishing（OIDC），不可用时回退 `NPM_TOKEN`，并在发布后轮询确认版本已在 registry 可见；随后打包、生成 SHA-256、用同一脚本生成完整发布说明（版本信息 / 安装 / 发布产物 / 分类变更 / 质量校验 / 贡献者 / 对比）并创建或更新 GitHub Release。
+- 真机验收（MuMu 模拟器上的布局、抽屉、键盘、返回键等）需要设备，不在 CI 中执行，按 `docs/mobile-layout-plan.md` 的验证矩阵手动完成。
+
+发布步骤：改 `package.json` 版本 → 提交 → `git tag v0.5.13` → push tag（或手动跑 Release workflow）。仓库需配置 Secret `NPM_TOKEN`，或在 npm 包设置里登记 Trusted Publishing（workflow 名 `release.yml`）。
 
 ## 命名
 

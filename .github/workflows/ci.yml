@@ -1,0 +1,108 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  PACKAGE_NAME: '@xiaopb/dsh-mobile-layout'
+
+jobs:
+  check:
+    name: check (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # engines 要求 >=22.12.0：22 是最低支持线，24 是当前 LTS 前瞻。
+        node: [22, 24]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      # 本包没有运行时 / 开发依赖，仓库不携带 lockfile，因此用 install 而不是 ci；
+      # --package-lock=false 避免在 CI 工作区里生成未提交的锁文件。
+      - name: Install
+        run: npm install --no-audit --no-fund --ignore-scripts --package-lock=false
+
+      # 产物语法检查 → 单测 → 包清单 / patch / bundle 契约自检（与 Release 同一入口）
+      - name: Run the release checks
+        run: npm run check
+
+      - name: Inspect package contents
+        run: npm pack --dry-run
+
+      - name: Pack the tarball
+        shell: bash
+        run: |
+          set -euo pipefail
+          # npm pack 的 prepack 会跑 verify-package，输出混在 stdout 里；
+          # 直接按文件名取产物，避免解析日志。
+          npm pack > pack.log 2>&1 || { cat pack.log; exit 1; }
+          TARBALL="$(ls -1t ./*.tgz | head -n1 | xargs -n1 basename)"
+          printf '%s\n' "$TARBALL" > tarball.txt
+          cat tarball.txt
+
+      - name: Validate the release notes generator
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          TARBALL="$(cat tarball.txt)"
+          SHA256="$(sha256sum "$TARBALL" | cut -d' ' -f1)"
+          TAG="v$VERSION" VERSION="$VERSION" PACKAGE_NAME="$PACKAGE_NAME" \
+            TARBALL="$TARBALL" SHA256="$SHA256" \
+            bash scripts/release-notes.sh "$RUNNER_TEMP/release-notes.md"
+          grep -q '^## 版本信息' "$RUNNER_TEMP/release-notes.md"
+          grep -q '^## 安装' "$RUNNER_TEMP/release-notes.md"
+          grep -q '^## 发布产物' "$RUNNER_TEMP/release-notes.md"
+          grep -q '^## 变更内容' "$RUNNER_TEMP/release-notes.md"
+          grep -q '^## 贡献者' "$RUNNER_TEMP/release-notes.md"
+          grep -q "$SHA256" "$RUNNER_TEMP/release-notes.md"
+          echo "release notes: $(wc -l < "$RUNNER_TEMP/release-notes.md") lines"
+
+      - name: Install the packed bundle like a consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARBALL="$(cat tarball.txt)"
+          mkdir -p "$RUNNER_TEMP/consumer"
+          cd "$RUNNER_TEMP/consumer"
+          npm init -y > /dev/null
+          # peer 由宿主提供（cordis），消费端安装时不需要真的把它拉下来。
+          npm install --no-audit --no-fund --legacy-peer-deps "$GITHUB_WORKSPACE/$TARBALL"
+          PKG="$RUNNER_TEMP/consumer/node_modules/$PACKAGE_NAME"
+          node -e "
+            const p = require('$PKG/package.json');
+            if (p.name !== '$PACKAGE_NAME') throw new Error('unexpected package name: ' + p.name);
+            if (p.dsh?.bundle?.patch !== './cordis.patch.yml') throw new Error('dsh.bundle.patch missing');
+            if (p.dsh?.client?.platform !== 'web') throw new Error('dsh.client.platform missing');
+            const h = require('$PKG');
+            if (typeof h.apply !== 'function') throw new Error('host entry does not export apply');
+            if (!Array.isArray(h.inject)) throw new Error('host entry does not export inject');
+          "
+          test -f "$PKG/lib/client.js"
+          test -f "$PKG/cordis.patch.yml"
+          grep -q '__ModuleLoader__' "$PKG/lib/client.js"
+          # 开发目录不能进包
+          for dir in test docs scripts .github; do
+            if [ -e "$PKG/$dir" ]; then echo "::error::$dir leaked into the tarball"; exit 1; fi
+          done
+          echo "installed bundle: $(node -p "require('$PKG/package.json').name + '@' + require('$PKG/package.json').version")"
