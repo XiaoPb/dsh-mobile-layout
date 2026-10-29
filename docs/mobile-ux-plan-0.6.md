@@ -509,3 +509,33 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 ### 11.5 后续（二期，未实施）
 
 桌面移动布局真兼容：`navigator.windowControlsOverlay.getTitlebarAreaRect()` 避让窗控、Pointer Events 手势、Android 专属校准按宿主分叉、`cordis.patch.yml` config 开关（`desktop: off|auto|force`，默认 off）。
+
+## 12. 浮动侧栏键嵌入标题行 + 加号面板与输入法互斥（0.1.8）
+
+用户反馈两点：① 全局面板（插件 / 自动化任务 / SSH 工作区）的浮动 ☰ 是悬浮块（带边框底色、标题右移让位），希望像设置页返回键那样嵌进标题行，图标换成 Sidebar；② 输入法开着点 ⊕，加号面板弹出后焦点仍在输入框、软键盘不收，面板与键盘同屏。
+
+### 12.1 浮动侧栏键：贴标题左缘（方案 A，零 DOM 侵入）
+
+- 旧实现：`syncPageHead()` 把标题相对右移最多 48px 给左上角固定 8px 的浮动键让位，键自带 1px 边框 + 背景色，视觉上是一块悬浮按钮。
+- 新实现：量出标题左缘 `rawLeft` 后走纯函数 `floatMenuLeft(rawLeft)`：
+  - `rawLeft >= 52`：键 `left = rawLeft - 44`（36px 键 + 8px 间距），**标题完全不平移**，写 `--dshm-float-menu-left`；`--dshm-page-head-shift` 逻辑保留但多数页面不再触发。
+  - `rawLeft < 52`（标题太靠左放不下）：退回旧兜底，键 8px、标题右移让位（上限 48px 不变）。
+- **滚动隐藏 / 回显（K70 真机反馈后补）**：键是 fixed 定位，页面滚动时标题滚走而键钉在原地会盖住滚上来的内容。方案：document 捕获 scroll（rAF 合帧）触发 `syncPageHead` 重算，页头行相对 center 顶部的位移 `topGap < -4` 即判定已滚动，打 `data-dshm-float-menu-hidden`（CSS opacity 0 + pointer-events none，120ms 过渡），滚回顶部自动回显。**判据不能用绝对阈值**——各页 / 各设备静止时标题顶从 8px 到 56px 都有（MuMu 实测 8/24/44，K70 实测 28），首版用 `title.top < 40` 把静止态也误判成已滚动，真机探针（复刻 syncPageHead 判定取证）后改为 topGap。吸顶页头 topGap 恒 0，键保持可见。该页从未出现过页头时维持默认兜底位（不隐藏）。
+- CSS：去边框与背景改 `transparent`（`:active` 保留灰底反馈），图标由 ☰ `MenuIcon` 换成 Sidebar（panel-left：圆角矩形 + 左侧竖分隔线，`SidebarIcon`），aria-label 用 `t('drawer')`（侧栏 / Sidebar）；会话头里的抽屉入口保持 ☰ 不变（官方 header leading 语义）。
+- 不采用设置页式 DOM 插入（方案 B）：三个面板页页头结构各异且都归官方 React 管辖、行容器不一定是 flex，回归风险大于收益；视觉嵌入已达标。
+- `clearPageHead()` 与 `dispose` 同步清理 `--dshm-float-menu-left`。
+
+### 12.2 加号面板与输入法互斥
+
+- 根因：`openSheet()`（会话 / 插件底部表）打开前有 blur，但 ⊕ 走的 `openOfficialAddMenu()` 没有——输入法开着点 ⊕ 时焦点留在输入框，官方打开面板后还可能异步把焦点放回输入框。
+- 实施：
+  1. 抽公共 `blurComposer()`（openSheet 复用）；`openOfficialAddMenu()` 点击官方按钮**前**收一次焦点；
+  2. **点击期间短暂禁用输入控件**（K70 真机反馈后升级）：只 blur 挡不住官方打开面板时的 refocus，真机上键盘「拉起→收起→再弹面板」体验交叉。现在点击前把 composer 的 `textarea` 置 `disabled`、contenteditable 区置 `contenteditable=false`（focus() 在禁用元素上是 no-op，官方 refocus 直接落空，软键盘全程不拉起），600ms 后按原值恢复；
+  3. 点击后 120ms / 250ms 各补一次延迟收焦点，作为找不到输入控件时的兜底；
+  4. `tagComposerMenus()` 的加号宫格分支兜底：面板打开且 composer 输入框持有焦点时收掉（**打开后 800ms 内不动**，避免与官方异步 focus 竞争；选择器带搜索框走 picker 分支不受影响）；时间戳 `addMenuOpenedAt` 记录打开时刻。
+- 互斥方向反了不管：面板开着点输入框，官方外部点击会先收面板。
+
+### 12.3 验证
+
+- 单测：`floatMenuLeft` 8 例（贴左缘 / 兜底 / 上限 / NaN·undefined 回退），全套 54 项通过；`verify-package` ALL PASS（bundle VERSION 0.1.8 与包一致）。
+- 真机（K70）已验：插件面板页 Sidebar 键贴标题左缘（键 [8,25,36,36]，标题 rawLeft 24 < 52 走兜底右移到 52）；下滚键隐藏不遮挡内容、滚回顶部回显（探针：topGap -95 → hidden，tg 0 → hidden 清除）；输入法展开点 ⊕ 后 0.4s 中间帧键盘已完全收起、宫格面板已打开，无焦点回跳。SSH 工作区页同规则。待验：会话页 / 设置页回归。
