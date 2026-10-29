@@ -12,6 +12,7 @@
  *   3. dsh 元数据：bundle.patch / client.platform / client.inject
  *   4. cordis.patch.yml：insert 行 id 与插件名指向本包
  *   5. 客户端 bundle 契约：__ModuleLoader__ 包装 + 官方槽位与自有锚点标记
+ *      + bundle 内 VERSION 常量与 package.json 版本一致
  *   6. 宿主入口可 require 且导出 { name, inject, apply }
  */
 
@@ -79,6 +80,17 @@ for (const marker of ['conversation.header.leading', 'shell.overlay', 'shell.bot
 }
 check(!/^\s*import\s+/m.test(client), 'bundle 不用 ESM import（走 loader 注入的 require）')
 check(/const\s+react\s*=\s*require\(['"]react['"]\)/.test(client), 'react 经 factory 注入的 require 解析')
+
+// bundle 里的 VERSION 会出现在 dshm:mode 事件里，必须与包版本一致；
+// 两处靠人肉同步容易漏。
+const versionInBundle = /const\s+VERSION\s*=\s*['"]([^'"]+)['"]/.exec(client)
+check(Boolean(versionInBundle), 'bundle 声明了 VERSION 常量')
+if (versionInBundle) {
+  check(
+    versionInBundle[1] === pkg.version,
+    `bundle VERSION 与 package.json 一致（${versionInBundle[1]} vs ${pkg.version}）`,
+  )
+}
 
 // ---- 6. 宿主入口 ----
 const host = require(path.join(root, 'lib', 'index.js'))
