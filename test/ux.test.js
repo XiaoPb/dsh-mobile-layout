@@ -46,9 +46,16 @@ const {
   sessionRows,
   sessionRowId,
   pageLabel,
+  swipeDirection,
+  nextTabIndex,
+  SWIPE_MIN,
   STRINGS,
   ADD_COLS,
   ADD_MAX_ROWS,
+  ADD_TINTS,
+  addOptionKey,
+  tintHash,
+  planAddTints,
 } = loadClient().__test
 
 /** vm 沙箱里造出来的数组原型不同，比较前先转成本域的普通数组。 */
@@ -381,4 +388,114 @@ test('sidebarClickAction：点空白 / 表单 / 展开折叠 / 菜单都不收',
   // 不在侧栏内
   assert.equal(sidebarClickAction({ inside: false, navRow: true, hasText: true }), 'none')
   assert.equal(sidebarClickAction(null), 'none')
+})
+
+/**
+ * 设置页横滑换页签：先判方向，再挑目标下标。
+ *
+ * 真机上的失误形态有两种——竖滑（想滚列表）被当成换页、首尾继续滑跳到另一头，
+ * 这两条都在这组用例里钉死。
+ */
+test('swipeDirection：横滑给方向，短距 / 竖滑 / 斜滑都不换页', () => {
+  assert.equal(SWIPE_MIN, 48)
+  // 左滑（dx<0）→ 下一页签；右滑 → 上一页签
+  assert.equal(swipeDirection(-120, 4), 1)
+  assert.equal(swipeDirection(120, -6), -1)
+  // 刚好到阈值也算
+  assert.equal(swipeDirection(-SWIPE_MIN, 0), 1)
+  assert.equal(swipeDirection(-SWIPE_MIN + 1, 0), 0)
+  // 竖滑（滚动列表）不换页
+  assert.equal(swipeDirection(-60, 90), 0)
+  assert.equal(swipeDirection(0, 120), 0)
+  // 斜滑：纵向超过横向 0.72 倍就不认
+  assert.equal(swipeDirection(-100, 80), 0)
+  assert.equal(swipeDirection(-100, 60), 1)
+  // 自定义阈值
+  assert.equal(swipeDirection(-30, 0, 24), 1)
+  assert.equal(swipeDirection(-30, 0, 60), 0)
+})
+
+test('nextTabIndex：只钳不绕，首尾到头原地不动', () => {
+  assert.equal(nextTabIndex(0, 1, 6), 1)
+  assert.equal(nextTabIndex(3, 1, 6), 4)
+  assert.equal(nextTabIndex(3, -1, 6), 2)
+  // 末页再右滑、首页再左滑：返回 -1（不循环）
+  assert.equal(nextTabIndex(5, 1, 6), -1)
+  assert.equal(nextTabIndex(0, -1, 6), -1)
+  // 没找到激活项（-1）时从第一项起算
+  assert.equal(nextTabIndex(-1, 1, 6), 1)
+  assert.equal(nextTabIndex(-1, -1, 6), -1)
+  // 只有一个页签 / 非法 delta
+  assert.equal(nextTabIndex(0, 1, 1), -1)
+  assert.equal(nextTabIndex(0, 1, 0), -1)
+  assert.equal(nextTabIndex(0, 2, 6), -1)
+  assert.equal(nextTabIndex(0, 1, 'x'), -1)
+})
+
+test('STRINGS：设置页返回键有中英文文案', () => {
+  assert.equal(STRINGS.zh.back, '返回')
+  assert.equal(STRINGS.en.back, 'Back')
+})
+
+test('ADD_TINTS：蓝 / 橙 / 紫 / 绿四族，避开正色且前景与柔光底成对', () => {
+  const groups = new Set(ADD_TINTS.map((tint) => tint.name.split('-')[0]))
+  assert.deepEqual(Array.from(groups).sort(), ['amber', 'blue', 'green', 'violet'])
+  for (const tint of ADD_TINTS) {
+    assert.match(tint.fg, /^#[0-9A-Fa-f]{6}$/)
+    assert.match(tint.soft, /^rgba\(\d+, \d+, \d+, 0\.15\)$/)
+    // 正色（纯红/绿/蓝、纯白纯黑）一个都不要
+    assert.ok(!['#0000FF', '#00FF00', '#FF0000', '#000000', '#FFFFFF'].includes(tint.fg.toUpperCase()))
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(tint.fg.slice(i, i + 2), 16))
+    const max = Math.max(r, g, b)
+    const min = Math.min(r, g, b)
+    // 饱和度 40%~75%：中低饱和，不刺眼（蓝紫橙本身偏高，留一点余量）
+    const saturation = max === min ? 0 : (max - min) / max
+    assert.ok(saturation >= 0.4 && saturation <= 0.75, tint.name + ' 饱和度 ' + saturation.toFixed(2))
+    // 明度 38%~70%：白底看得清、深色底不糊（绿色天然偏暗，给到 0.38）
+    const light = (max + min) / 2 / 255
+    assert.ok(light >= 0.38 && light <= 0.70, tint.name + ' 明度 ' + light.toFixed(2))
+  }
+})
+
+test('addOptionKey：优先用官方别名（命令 id），缺失时退回名称 / 分组', () => {
+  // 实测结构：名称 / 别名 / 描述
+  assert.equal(addOptionKey(['文件', 'file', '上传或引用本地文件'], '添加'), 'alias:file')
+  assert.equal(addOptionKey(['下载日志', 'export'], '指令'), 'alias:export')
+  // 大小写归一
+  assert.equal(addOptionKey(['Model', 'Model'], ''), 'alias:model')
+  // 没有别名（第二段是描述）时用名称
+  assert.equal(addOptionKey(['  余额  '], '指令'), 'label:余额')
+  // 全空退回分组，再空回 misc
+  assert.equal(addOptionKey([], '指令'), 'group:指令')
+  assert.equal(addOptionKey(null, ''), 'misc')
+})
+
+test('planAddTints：同类型同色、同屏不撞色、新增项自动落位', () => {
+  const palette = 12
+  const plan = planAddTints([{ key: 'alias:file' }, { key: 'alias:goal' }, { key: 'alias:file' }], palette)
+  // 同 key 复用同一色位
+  assert.equal(plan[0], plan[2])
+  // 不同 key 不撞
+  assert.notEqual(plan[0], plan[1])
+  // 稳定：同样输入永远同样输出（不是每次随机变）
+  assert.deepEqual(arr(planAddTints([{ key: 'alias:file' }, { key: 'alias:goal' }, { key: 'alias:file' }], palette)), arr(plan))
+  // 11 项（当前面板实测数量）在同屏 12 色板里各占一位
+  const keys = ['file', 'goal', 'plan', 'feedback', 'compact', 'permission', 'model', 'export', 'balance', 'chat', 'pet'].map((k) => ({ key: 'alias:' + k }))
+  const wide = arr(planAddTints(keys, palette))
+  assert.equal(new Set(wide).size, keys.length)
+  // 超出色板：不崩，仍能给出合法下标
+  const many = arr(planAddTints(new Array(30).fill(0).map((_, i) => ({ key: 'k' + i })), 4))
+  assert.equal(many.length, 30)
+  assert.ok(many.every((i) => i >= 0 && i < 4))
+  // 空输入 / 非法色板
+  assert.equal(arr(planAddTints([], palette)).length, 0)
+  assert.equal(arr(planAddTints(null, palette)).length, 0)
+  assert.equal(planAddTints([{ key: 'a' }], 0)[0], 0)
+})
+
+test('tintHash：同键恒等、异键大概率不同、对空值稳定', () => {
+  assert.equal(tintHash('alias:file'), tintHash('alias:file'))
+  assert.notEqual(tintHash('alias:file'), tintHash('alias:model'))
+  assert.equal(tintHash(''), tintHash(null))
+  assert.ok(tintHash('alias:file') >= 0)
 })
