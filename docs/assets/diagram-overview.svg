@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" font-family="'Segoe UI','Helvetica Neue',Arial,'PingFang SC','Microsoft YaHei',sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="760" height="470" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="30" y="34" font-size="22" font-weight="700" fill="#0f172a">How dsh-mobile-layout works</text>
+  <text x="30" y="56" font-size="13" fill="#64748b">Turns the DSH desktop web client into a phone-portrait, touch-first layout — no official kernel changes.</text>
+
+  <!-- Pipeline nodes -->
+  <!-- Node 1: DSH Web Client -->
+  <rect x="30" y="92" width="200" height="118" rx="14" fill="#eef2ff" stroke="#4d6bfe" stroke-width="1.5"/>
+  <rect x="50" y="112" width="40" height="30" rx="4" fill="none" stroke="#4d6bfe" stroke-width="1.5"/>
+  <line x1="50" y1="120" x2="90" y2="120" stroke="#4d6bfe" stroke-width="1.5"/>
+  <rect x="50" y="124" width="26" height="14" rx="2" fill="#c7d2fe"/>
+  <text x="100" y="126" font-size="13" font-weight="600" fill="#1e293b">DSH Web Client</text>
+  <text x="50" y="162" font-size="12" fill="#475569">Official desktop layout</text>
+  <text x="50" y="180" font-size="12" fill="#475569">Cramped on narrow screens</text>
+  <text x="50" y="198" font-size="12" fill="#94a3b8">(no media queries)</text>
+
+  <!-- Arrow 1 -->
+  <line x1="230" y1="151" x2="296" y2="151" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Node 2: Engine -->
+  <rect x="300" y="76" width="200" height="150" rx="14" fill="#ecfdf3" stroke="#2faa6a" stroke-width="1.5"/>
+  <text x="320" y="104" font-size="14" font-weight="700" fill="#166534">dsh-mobile-layout</text>
+  <text x="320" y="122" font-size="11" fill="#475569">Cordis plugin · single file</text>
+  <line x1="320" y1="132" x2="480" y2="132" stroke="#bbf7d0" stroke-width="1"/>
+  <text x="320" y="152" font-size="12" fill="#334155"><tspan fill="#2faa6a" font-weight="700">1</tspan>  Detect phone portrait</text>
+  <text x="320" y="172" font-size="12" fill="#334155"><tspan fill="#2faa6a" font-weight="700">2</tspan>  Scoped CSS/JS</text>
+  <text x="332" y="188" font-size="11" fill="#64748b">data-dshm-mode="mobile"</text>
+  <text x="320" y="208" font-size="12" fill="#334155"><tspan fill="#2faa6a" font-weight="700">3</tspan>  Restructure components</text>
+
+  <!-- Arrow 2 -->
+  <line x1="500" y1="151" x2="566" y2="151" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Node 3: Output -->
+  <rect x="570" y="92" width="160" height="118" rx="14" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <rect x="590" y="112" width="34" height="56" rx="6" fill="none" stroke="#8b5cf6" stroke-width="1.5"/>
+  <rect x="596" y="120" width="22" height="6" rx="2" fill="#ddd6fe"/>
+  <rect x="596" y="132" width="22" height="6" rx="2" fill="#ddd6fe"/>
+  <rect x="596" y="156" width="22" height="6" rx="2" fill="#8b5cf6"/>
+  <text x="632" y="126" font-size="13" font-weight="600" fill="#1e293b">Mobile</text>
+  <text x="632" y="142" font-size="13" font-weight="600" fill="#1e293b">Portrait UI</text>
+  <text x="590" y="172" font-size="11" fill="#475569">Touch-first layout</text>
+  <text x="590" y="188" font-size="11" fill="#475569">Clean &amp; focused</text>
+  <text x="590" y="204" font-size="11" fill="#94a3b8">44px targets</text>
+  <text x="30" y="266" font-size="15" font-weight="700" fill="#0f172a">Capabilities</text>
+  <line x1="30" y1="276" x2="730" y2="276" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- chip template: x, y, color, label -->
+  <!-- Row 1 -->
+  <g>
+    <rect x="30" y="290" width="172" height="50" rx="10" fill="#eef2ff" stroke="#dbe3ff"/>
+    <circle cx="52" cy="315" r="7" fill="#4d6bfe"/>
+    <text x="68" y="312" font-size="13" font-weight="600" fill="#1e293b">Drawer sidebar</text>
+    <text x="68" y="330" font-size="11" fill="#64748b">☰ swipe / mask close</text>
+  </g>
+  <g>
+    <rect x="214" y="290" width="172" height="50" rx="10" fill="#fff4e8" stroke="#ffe2c2"/>
+    <circle cx="236" cy="315" r="7" fill="#f08c2e"/>
+    <text x="252" y="312" font-size="13" font-weight="600" fill="#1e293b">Bottom action bar</text>
+    <text x="252" y="330" font-size="11" fill="#64748b">new / chat / file / more</text>
+  </g>
+  <g>
+    <rect x="398" y="290" width="172" height="50" rx="10" fill="#f5f3ff" stroke="#e6defe"/>
+    <circle cx="420" cy="315" r="7" fill="#8b5cf6"/>
+    <text x="436" y="312" font-size="13" font-weight="600" fill="#1e293b">Add panel + tints</text>
+    <text x="436" y="330" font-size="11" fill="#64748b">4×2 grid, color-coded</text>
+  </g>
+  <g>
+    <rect x="582" y="290" width="148" height="50" rx="10" fill="#ecfdf3" stroke="#c7f0d6"/>
+    <circle cx="604" cy="315" r="7" fill="#2faa6a"/>
+    <text x="620" y="312" font-size="13" font-weight="600" fill="#1e293b">Sessions</text>
+    <text x="620" y="330" font-size="11" fill="#64748b">by workspace</text>
+  </g>
+
+  <!-- Row 2 -->
+  <g>
+    <rect x="30" y="352" width="172" height="50" rx="10" fill="#eef2ff" stroke="#dbe3ff"/>
+    <circle cx="52" cy="377" r="7" fill="#4d6bfe"/>
+    <text x="68" y="374" font-size="13" font-weight="600" fill="#1e293b">Fullscreen settings</text>
+    <text x="68" y="392" font-size="11" fill="#64748b">swipeable tabs</text>
+  </g>
+  <g>
+    <rect x="214" y="352" width="172" height="50" rx="10" fill="#fff4e8" stroke="#ffe2c2"/>
+    <circle cx="236" cy="377" r="7" fill="#f08c2e"/>
+    <text x="252" y="374" font-size="13" font-weight="600" fill="#1e293b">Bottom-sheet picker</text>
+    <text x="252" y="392" font-size="11" fill="#64748b">model / permission</text>
+  </g>
+  <g>
+    <rect x="398" y="352" width="172" height="50" rx="10" fill="#fdecee" stroke="#fbcfd3"/>
+    <circle cx="420" cy="377" r="7" fill="#e5484d"/>
+    <text x="436" y="374" font-size="13" font-weight="600" fill="#1e293b">Full-access in red</text>
+    <text x="436" y="392" font-size="11" fill="#64748b">zh / en warning</text>
+  </g>
+  <g>
+    <rect x="582" y="352" width="148" height="50" rx="10" fill="#f5f3ff" stroke="#e6defe"/>
+    <circle cx="604" cy="377" r="7" fill="#8b5cf6"/>
+    <text x="620" y="374" font-size="13" font-weight="600" fill="#1e293b">A11y &amp; motion</text>
+    <text x="620" y="392" font-size="11" fill="#64748b">aria / reduced</text>
+  </g>
+
+  <!-- Footer -->
+  <text x="30" y="438" font-size="12" fill="#94a3b8">Zero intrusion · Uninstall restores official layout · Single-file build (lib/client.js) · Follows official locale</text>
+</svg>
