@@ -48,6 +48,7 @@ const {
   pageLabel,
   swipeDirection,
   nextTabIndex,
+  drawerStartLimit,
   floatMenuLeft,
   SWIPE_MIN,
   STRINGS,
@@ -519,4 +520,19 @@ test('floatMenuLeft：侧栏键贴标题左缘，标题不再平移', () => {
   // 非法输入退回兜底
   assert.deepEqual(fm(floatMenuLeft(NaN)), [8, 48])
   assert.deepEqual(fm(floatMenuLeft(undefined)), [8, 48])
+})
+
+test('drawerStartLimit：打开区为左 40% 屏宽，钳 64–200', () => {
+  // K70 / 常见手机 CSS 宽 ~390-430：0.4 倍落在 156-172，中间偏左起手可开
+  assert.equal(drawerStartLimit(411), 164)
+  assert.equal(drawerStartLimit(390), 156)
+  assert.equal(drawerStartLimit(360), 144)
+  // 窄屏（分屏 / 小窗）不低于 64，避免退化成纯边缘手势
+  assert.equal(drawerStartLimit(150), 64)
+  // 宽屏（平板横竖）不超 200，避免和内容横滑打架
+  assert.equal(drawerStartLimit(800), 200)
+  // 非法输入给保守缺省
+  assert.equal(drawerStartLimit(0), 96)
+  assert.equal(drawerStartLimit(NaN), 96)
+  assert.equal(drawerStartLimit(undefined), 96)
 })

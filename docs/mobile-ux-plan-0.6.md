@@ -539,3 +539,21 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 
 - 单测：`floatMenuLeft` 8 例（贴左缘 / 兜底 / 上限 / NaN·undefined 回退），全套 54 项通过；`verify-package` ALL PASS（bundle VERSION 0.1.8 与包一致）。
 - 真机（K70）已验：插件面板页 Sidebar 键贴标题左缘（键 [8,25,36,36]，标题 rawLeft 24 < 52 走兜底右移到 52）；下滚键隐藏不遮挡内容、滚回顶部回显（探针：topGap -95 → hidden，tg 0 → hidden 清除）；输入法展开点 ⊕ 后 0.4s 中间帧键盘已完全收起、宫格面板已打开，无焦点回跳。SSH 工作区页同规则。待验：会话页 / 设置页回归。
+
+## 13. 抽屉打开手势扩到中间偏左（QQ 式，0.1.9）
+
+用户反馈（K70 全面屏）：抽屉打开手势原来只认左缘 24px（`startedAtEdge = startX <= 24`），全面屏手势把系统「返回」绑在同一区域，边缘右滑直接退回桌面，根本到不了插件。
+
+### 13.1 方案
+
+- 新纯函数 `drawerStartLimit(width)`：打开起手区 = 屏宽左 40%，钳 64–200 CSS px（太窄退化成边缘手势，太宽和内容横滑打架；非法输入保守缺省 96）。K70（CSS 411px）≈164px，「中间偏左」起手即可。
+- `OverlayLayer` 手势层：
+  - 打开方向（右滑）改为 `startX <= drawerStartLimit(clientWidth)`；收起方向（抽屉开着左滑）不受起手区限制，全屏任意位置可用；
+  - 纵向阈值不变（|dx|≥48 且 |dx| > |dy|×1.2），竖向滚动不受影响；
+  - 防冲突三道闸：底部表 / ⊕ 面板 / 设置页打开时不叠开抽屉；起手点在横向滚动容器（代码块、轮播，scrollWidth>clientWidth 且 overflow-x auto/scroll，向上找 6 层）内不触发；浮层关闭态遮罩层 pointer-events:none 本就不阻塞。
+- 系统边缘返回无法也不应拦截（浏览器无权限），扩大起手区是唯一正解。
+
+### 13.2 验证
+
+- 单测 +`drawerStartLimit` 8 例（常见手机 / 窄屏下限 / 宽屏上限 / NaN·undefined 回退），全套 55 项通过；verify-package ALL PASS（0.1.9）。
+- K70 真机待验：起手 x≈114 CSS（屏宽 40% 内）右滑开抽屉；起手 x≈343（区外）不开；抽屉开着全屏左滑可关；插件面板纵向滚动不误触。

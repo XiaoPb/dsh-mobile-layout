@@ -6,7 +6,7 @@
 [![Release](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/release.yml/badge.svg)](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/release.yml)
 [![npm](https://img.shields.io/npm/v/@xiaopb/dsh-mobile-layout?label=npm)](https://www.npmjs.com/package/@xiaopb/dsh-mobile-layout)
 
-**DSH 手机竖屏布局插件（v0.1.8）**
+**DSH 手机竖屏布局插件（v0.1.9）**
 
 一个 Cordis 插件，让 DSH Web 客户端在**手机竖屏**下变成单手可操作的触控布局——**不修改官方内核、不替换官方布局插件**。仅识别手机竖屏形态，横屏 / 平板 / 桌面保持官方原样，像素级不变。
 
@@ -14,7 +14,7 @@
 
 ## 核心功能
 
-- **左侧栏 → 抽屉**：汉堡入口 / 左缘滑动打开，遮罩或左滑关闭；只在真正换页时自动收起（点空白、搜索、账号菜单等保持展开）。
+- **左侧栏 → 抽屉**：汉堡入口 / 屏幕左侧约 40% 区域（QQ 式，中间偏左起手）右滑打开，遮罩或左滑关闭；只在真正换页时自动收起（点空白、搜索、账号菜单等保持展开）。
 - **顶部侧栏键**：插件 / 设置 / 自动化 / SSH 等全局面板，无会话头时 Sidebar 图标键贴在页面标题左侧（无边框底色，视觉上嵌入标题行；标题太靠左时才回退让位）。
 - **底部常驻操作条**：新建 / 会话 / 文件 / 图片 / 插件 / 更多，紧贴输入区上沿。
 - **加号面板**：4 列 × 2 行宫格，超过 8 项横向分页；图标**按功能类型配色**（蓝 / 橙 / 紫 / 绿 12 档柔和色，同类型同色、同屏不撞色、新增功能按别名哈希自动落位）。
