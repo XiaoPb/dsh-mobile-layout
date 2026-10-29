@@ -34,7 +34,7 @@
 | **形态保守** | 识别三种宿主（Android 壳 / 桌面 Electron / 浏览器）；桌面端 DeepSeek Harness **永不激活**（任何窗口尺寸官方布局不变），其余形态只认手机竖屏、像素级不变。 |
 | **触控优先** | 44px 触控目标、滑动手势、单手可达。 |
 | **稳定配色** | 哈希落位，新增功能图标免改代码自动配色。 |
-| **真机验收** | MuMu 模拟器（720×1280）实机复核，CI 单测 38 项全绿。 |
+| **真机验收** | MuMu 模拟器（720×1280）与 Redmi K70 真机复核，CI 单测 55 项全绿。 |
 
 ---
 
@@ -80,7 +80,7 @@ dsh plugin --profile web add @xiaopb/dsh-mobile-layout
 
 ```sh
 npm run check     # node --check → 单测 → 包清单 / bundle 契约自检
-npm test          # 仅单测（38 项）
+npm test          # 仅单测（55 项）
 npm run pack:dry  # 查看将发布的文件
 ```
 
