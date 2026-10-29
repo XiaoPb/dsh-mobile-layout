@@ -49,7 +49,6 @@ const {
   swipeDirection,
   nextTabIndex,
   drawerStartLimit,
-  addPanelHeight,
   resolveImeHeight,
   floatMenuLeft,
   SWIPE_MIN,
@@ -537,22 +536,6 @@ test('drawerStartLimit：打开区为左 40% 屏宽，钳 64–200', () => {
   assert.equal(drawerStartLimit(0), 96)
   assert.equal(drawerStartLimit(NaN), 96)
   assert.equal(drawerStartLimit(undefined), 96)
-})
-
-test('addPanelHeight：面板高=键盘高，钳 160 ~ 视口 60%', () => {
-  // K70：键盘 ~337 CSS px → 面板同高，与键盘占据同一底部区域
-  assert.equal(addPanelHeight(337, 917), 337)
-  assert.equal(addPanelHeight(280, 800), 280)
-  // 异常小值钳到 160（防测量毛刺把面板压扁）
-  assert.equal(addPanelHeight(80, 917), 160)
-  // 异常大值钳到视口 60%（防把面板顶到半屏以上）
-  assert.equal(addPanelHeight(700, 917), 550)
-  // 未测得键盘高度（0/负/NaN/undefined）→ 0，面板维持内容自适应
-  assert.equal(addPanelHeight(0, 917), 0)
-  assert.equal(addPanelHeight(-5, 917), 0)
-  assert.equal(addPanelHeight(NaN, 917), 0)
-  assert.equal(addPanelHeight(300, NaN), 0)
-  assert.equal(addPanelHeight(undefined, 917), 0)
 })
 
 test('resolveImeHeight：原生注入 > 实测/持久化 > 启发式', () => {
