@@ -42,6 +42,7 @@ const {
   groupSessionsByWorkspace,
   formatRelativeTime,
   normalizeWorkspacePath,
+  sidebarClickAction,
   sessionRows,
   sessionRowId,
   pageLabel,
@@ -357,4 +358,27 @@ test('pageLabel：模板按语言渲染且不残留占位符', () => {
     assert.ok(!text.includes('{n}'), `残留占位符：${text}`)
     assert.ok(!/第|页/.test(text), `英文环境不应出现中文：${text}`)
   }
+})
+
+test('sidebarClickAction：只有换页的点击才收起抽屉', () => {
+  // 会话 / 工作区行：换了选中项，直接收
+  assert.equal(sidebarClickAction({ inside: true, navRow: true }), 'close')
+  // 带文字的导航按钮（新建会话 / 插件 / 自动化任务 / SSH 工作区）
+  assert.equal(sidebarClickAction({ inside: true, button: true, hasText: true }), 'close')
+  // 纯图标按钮：默认不收，等视图签名
+  assert.equal(sidebarClickAction({ inside: true, button: true, hasText: false }), 'signature')
+})
+
+test('sidebarClickAction：点空白 / 表单 / 展开折叠 / 菜单都不收', () => {
+  // 点抽屉里的空白处（没有命中任何可交互元素）
+  assert.equal(sidebarClickAction({ inside: true }), 'none')
+  assert.equal(sidebarClickAction({ inside: true, button: false, navRow: false }), 'none')
+  // 表单控件：正在输入或搜索
+  assert.equal(sidebarClickAction({ inside: true, formControl: true, button: true, hasText: true }), 'none')
+  // 有 aria-expanded / aria-haspopup / aria-controls：展开折叠、下拉菜单、行内「… 操作」
+  assert.equal(sidebarClickAction({ inside: true, disclosure: true, navRow: true }), 'none')
+  assert.equal(sidebarClickAction({ inside: true, disclosure: true, button: true, hasText: true }), 'none')
+  // 不在侧栏内
+  assert.equal(sidebarClickAction({ inside: false, navRow: true, hasText: true }), 'none')
+  assert.equal(sidebarClickAction(null), 'none')
 })

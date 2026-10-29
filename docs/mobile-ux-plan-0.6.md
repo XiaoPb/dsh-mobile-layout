@@ -295,7 +295,7 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 
 | 阶段 | 内容 | 结果 |
 |---|---|---|
-| **M1** 纯函数 + 单测 | `rowsFor` / `slotOf` / `planAddPages` / `isSettingsDialog`；`npm run check` 全绿 | `test/ux.test.js` 30 项全过（0/1/4/5/8/9/11/16/17/24 项、非法输入、跨 realm 数组比较；另含工作区分组与相对时间 3 项）；0.6.0 之后补 8 项（原型键目录名分组、会话行 id 归一 / 当前会话置顶 / blank 过滤 / 不改源数组、`STRINGS` 中英键一致、翻页 `aria-label`），合计 38 项 |
+| **M1** 纯函数 + 单测 | `rowsFor` / `slotOf` / `planAddPages` / `isSettingsDialog`；`npm run check` 全绿 | `test/ux.test.js` 30 项全过（0/1/4/5/8/9/11/16/17/24 项、非法输入、跨 realm 数组比较；另含工作区分组与相对时间 3 项）；0.6.0 之后补 10 项（原型键目录名分组、会话行 id 归一 / 当前会话置顶 / blank 过滤 / 不改源数组、`STRINGS` 中英键一致、翻页 `aria-label`、抽屉点击收起真值表 2 项），合计 40 项 |
 | **M2** 加号面板分页 | 显式行列定位 + 页宽吸附 + 圆点指示 | 11 项（过滤「文件」后 10 项）→ 2 行 ×4 列 ×2 页；面板高恒 203px；`scrollLeft` 0↔393、`scrollWidth` 785；一页一次手势 |
 | **M3** 设置页全屏 | 打标 + 外壳 CSS + 品牌行 + 抽屉互斥 + 常驻条隐藏 | 面板 `0,0,401,712`；`HEAD 0,56,401,48`；`SCROLL 0,104,401,608` |
 | **M4** 内容区细节 | 页签 chip、工具行、行布局、开关热区、外观宫格 | 6 个 chip 均高 40；工具按钮 32、「关闭」44×44；`scrollWidth == clientWidth == 401`；外观窄屏两列 |
@@ -373,7 +373,7 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 
 ## 10. 0.6.0 之后的修复与复核（2026-10-29）
 
-0.6.0 发布后按「阻断 → 高优 → 清理」把 `lib/client.js` 全量重审了一遍，共 17 个修复（版本号仍是 `0.6.0`，发版建议 `0.6.1`）。
+0.6.0 发布后按「阻断 → 高优 → 清理」把 `lib/client.js` 全量重审了一遍，共 18 个修复（版本号仍是 `0.6.0`，发版建议 `0.6.1`）。
 
 ### 10.1 修复清单
 
@@ -393,6 +393,7 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 | 12 | 低 | `publish-npm.sh` 头注释写 `POLL_ATTEMPTS=10 / INTERVAL=6`，代码是 18 / 10 | 注释对齐代码 |
 | 13 | a11y | 底部表有 `role=dialog` 但无 `aria-modal`、打开后焦点仍在背后；抽屉无焦点管理 | 表补 `aria-modal` + 焦点进出；抽屉展开时补 `role` / `aria-label` / `aria-modal` 并把焦点送进侧栏（跳过输入框，免得弹软键盘） |
 | 14 | a11y | 插件自建动效不响应系统「减少动态效果」 | `@media (prefers-reduced-motion: reduce)` 关过渡与动画，终态保留 |
+| 15 | 交互 | 抽屉内「点哪都收」：只要点在侧栏里就收起，空白、搜索、视图选项、添加工作区、账号菜单、行内「… 操作」都会把抽屉收走，想继续挑就得重新打开 | 只认真正换页的点击：会话 / 工作区行（`role=treeitem`，带 `aria-expanded` 的分组头除外）与带文字的导航按钮（新建会话 / 插件 / 自动化任务 / SSH 工作区）；纯图标按钮改由「选中行 + 面板 + 路由」签名判定，真换页才收；判定抽成纯函数 `sidebarClickAction()`，补 2 项真值表用例 |
 
 ### 10.2 复核方式与结论
 
@@ -408,7 +409,7 @@ html[data-dshm-mode="mobile"] [data-dshm-settings-overlay] > [aria-hidden="true"
 
 ### 10.3 真机验证结果（2026-10-29，MuMu 720×1280 / CSS 400×711）
 
-取证方式：`adb exec-in run-as` 把 bundle 推入 `files/dsh-home/plugins/dsh-mobile-layout/lib/`，在**设备侧** bundle 末尾追加只读探针（不参与插件逻辑），按 `click` / `keydown` 采样 `data-dshm-mode`、无障碍属性、`activeElement`、`getComputedStyle` 的 `transition-duration`，经 logcat（`DshWebView: console/LOG`）回传；测完再推回发布版并核对 `md5`（`79c0c40…`，`grep PROBE` = 0）。视频/音频不在取证范围，读屏只核对无障碍树属性与焦点落点，未录 TalkBack 语音。
+取证方式：`adb exec-in run-as` 把 bundle 推入 `files/dsh-home/plugins/dsh-mobile-layout/lib/`，在**设备侧** bundle 末尾追加只读探针（不参与插件逻辑），按 `click` / `keydown` 采样 `data-dshm-mode`、无障碍属性、`activeElement`、`getComputedStyle` 的 `transition-duration`，经 logcat（`DshWebView: console/LOG`）回传；测完再推回发布版，核对设备端与本地 `md5` 一致且 `grep PROBE` = 0。视频/音频不在取证范围，读屏只核对无障碍树属性与焦点落点，未录 TalkBack 语音。
 
 | 项 | 结果 | 实测数据 |
 |---|---|---|
