@@ -261,3 +261,34 @@ test('workspaceLabelFor：查不到表时退回 cwd 目录名', () => {
   assert.equal(workspaceLabelFor('', map), '')
   assert.equal(workspaceLabelFor(null, map), '')
 })
+
+/**
+ * 回归：工作区目录名撞上 Object.prototype 的键名时，分组字典不能命中
+ * 原型链（曾用 `{}` 当字典，`seen['constructor']` 取到函数，push 直接抛
+ * TypeError；该函数在会话面板渲染期执行，等于整个面板崩掉）。
+ */
+test('groupSessionsByWorkspace：目录名叫 constructor / toString 也不炸', () => {
+  for (const name of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__']) {
+    const rows = [
+      { id: '1', cwd: '/w/' + name },
+      { id: '2', cwd: '/w/a' },
+      { id: '3', cwd: '/w/' + name },
+    ]
+    const plan = groupSessionsByWorkspace(rows, { '/w/a': 'alpha' })
+    assert.equal(plan.grouped, true, `${name} 应分成两组`)
+    assert.deepEqual(arr(plan.groups.map((group) => group.name)), [name, 'alpha'])
+    assert.deepEqual(arr(plan.groups[0].rows.map((row) => row.id)), ['1', '3'])
+  }
+})
+
+test('workspaceTitleMap：标题为原型键名不影响其它键的取值', () => {
+  const map = workspaceTitleMap({
+    items: [
+      { path: '/w/a', title: '__proto__' },
+      { path: '/w/b', title: 'constructor' },
+    ],
+  })
+  assert.equal(workspaceNameFor('/w/a', map), '__proto__')
+  assert.equal(workspaceNameFor('/w/b', map), 'constructor')
+  assert.equal(workspaceNameFor('/w/c', map), '')
+})
