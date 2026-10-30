@@ -50,7 +50,6 @@ const {
   nextTabIndex,
   drawerStartLimit,
   resolveImeHeight,
-  floatMenuLeft,
   SWIPE_MIN,
   STRINGS,
   ADD_COLS,
@@ -501,26 +500,6 @@ test('tintHash：同键恒等、异键大概率不同、对空值稳定', () => 
   assert.notEqual(tintHash('alias:file'), tintHash('alias:model'))
   assert.equal(tintHash(''), tintHash(null))
   assert.ok(tintHash('alias:file') >= 0)
-})
-
-/** floatMenuLeft 返回对象出自 vm 沙箱，原型不同，逐字段断言。 */
-function fm(value) {
-  return [value.left, value.shift]
-}
-
-test('floatMenuLeft：侧栏键贴标题左缘，标题不再平移', () => {
-  // 标题左缘 52 及以上：键贴到 rawLeft-44（36px 键 + 8px 间距），标题位移 0
-  assert.deepEqual(fm(floatMenuLeft(52)), [8, 0])
-  assert.deepEqual(fm(floatMenuLeft(120)), [76, 0])
-  assert.deepEqual(fm(floatMenuLeft(400)), [356, 0])
-  // 标题太靠左（<52）放不下：退回旧兜底，键固定 8px、标题右移让位
-  assert.deepEqual(fm(floatMenuLeft(16)), [8, 36])
-  assert.deepEqual(fm(floatMenuLeft(0)), [8, 48])
-  // 右移上限 48px（不无限推移）
-  assert.deepEqual(fm(floatMenuLeft(-10)), [8, 48])
-  // 非法输入退回兜底
-  assert.deepEqual(fm(floatMenuLeft(NaN)), [8, 48])
-  assert.deepEqual(fm(floatMenuLeft(undefined)), [8, 48])
 })
 
 test('drawerStartLimit：打开区为左 40% 屏宽，钳 64–200', () => {

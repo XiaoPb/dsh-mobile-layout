@@ -75,8 +75,13 @@ check(patchText.includes(quoted), `roster 行 name 指向本包（${quoted}）`)
 // ---- 5. 客户端 bundle 契约 ----
 const client = read('lib/client.js')
 check(/__ModuleLoader__\s*\.\s*load\(/.test(client), '客户端产物走 __ModuleLoader__.load 包装')
-for (const marker of ['conversation.header.leading', 'shell.overlay', 'shell.bottom', 'data-dshm-frame', 'dshm-menu-btn']) {
+for (const marker of ['shell.overlay', 'shell.bottom', 'data-dshm-frame', 'bindDrawerGesture']) {
   check(client.includes(marker), `bundle 含标记 ${marker}`)
+}
+// 抽屉入口只有左缘手势（0.1.15 起移除 ☰ / 浮动侧栏键，避免遮挡子页面
+// 返回键）：这些旧入口标记必须不存在，防止回潮。
+for (const gone of ['dshm-menu-btn', 'dshm-float-menu', 'conversation.header.leading']) {
+  check(!client.includes(gone), `bundle 不再含旧按键标记 ${gone}`)
 }
 check(!/^\s*import\s+/m.test(client), 'bundle 不用 ESM import（走 loader 注入的 require）')
 check(/const\s+react\s*=\s*require\(['"]react['"]\)/.test(client), 'react 经 factory 注入的 require 解析')
