@@ -40,6 +40,7 @@ const {
   scrollerConsumes,
   decideDrawerGesture,
   drawerSettle,
+  settingsSettle,
   SETTLE_RATIO,
   SETTLE_VELOCITY,
 } = loadClient().__test
@@ -206,4 +207,23 @@ test('drawerSettle：非法输入回落到起点侧，不产生 NaN 分支', () 
   assert.equal(drawerSettle(true, NaN, 0), true)
   assert.equal(drawerSettle(false, 0.5, NaN), true)
   assert.equal(drawerSettle(true, undefined, null), true)
+})
+
+test('settingsSettle：位移比例越过阈值（左滑为负）关闭设置页', () => {
+  assert.equal(settingsSettle(-0.38, 0), true)
+  assert.equal(settingsSettle(-0.37, 0), false)
+  // 右滑（正比例）永不关闭
+  assert.equal(settingsSettle(0.5, 0), false)
+})
+
+test('settingsSettle：左甩优先，右甩永远不关闭', () => {
+  assert.equal(settingsSettle(-0.05, -SETTLE_VELOCITY), true)
+  assert.equal(settingsSettle(-0.05, -0.5), true)
+  assert.equal(settingsSettle(-0.9, 0.6), false)
+})
+
+test('settingsSettle：非法输入不产生 NaN 分支，一律弹回', () => {
+  assert.equal(settingsSettle(NaN, 0), false)
+  assert.equal(settingsSettle(-0.5, NaN), true)
+  assert.equal(settingsSettle(undefined, null), false)
 })
