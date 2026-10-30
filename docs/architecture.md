@@ -35,7 +35,7 @@ dsh-mobile-layout 是一个 Cordis 插件，把 DSH Web 客户端在**手机竖�
         android / web → 采信 classify 结果
 ```
 
-模式之外还有一路**动态条件**：官方全局面板（`layout.panelInfo`）激活时插件把整屏让给官方面板页，只保留遮罩层的侧栏键与手势。
+模式之外还有一路**动态条件**：官方全局面板（`layout.panelInfo`）激活时插件把整屏让给官方面板页，只保留遮罩与手势。
 
 ## 3. 插件接入方式
 
@@ -43,7 +43,7 @@ dsh-mobile-layout 是一个 Cordis 插件，把 DSH Web 客户端在**手机竖�
 
 | 注入的服务 | 用途 |
 |---|---|
-| `slots` + `layout` | 注册三个官方槽位组件；取 `layout.panelInfo` 订阅面板激活状态 |
+| `slots` + `layout` | 注册两个官方槽位组件；取 `layout.panelInfo` 订阅面板激活状态、`layout.toggleSidebar` 开合抽屉 |
 | `sessions` + `uiWorkspace` | 新建会话、会话表数据、工作区分组 |
 | `locale` | i18n 跟随官方语言，监听 `locale/change` |
 
@@ -51,37 +51,39 @@ dsh-mobile-layout 是一个 Cordis 插件，把 DSH Web 客户端在**手机竖�
 
 | 槽位 | 组件 | 职责 |
 |---|---|---|
-| `conversation.header.leading` | `HamburgerButton` | 会话头 ☰，开关抽屉（与槽位同生共死） |
-| `shell.overlay` | `OverlayLayer` | 常驻遮罩 / 手势层 / 全局面板兜底侧栏键 / Esc 处理；关闭态 `pointer-events: none` 不阻塞任何交互 |
+| `shell.overlay` | `OverlayLayer` | 常驻遮罩 / 底部表 / Esc 处理；关闭态 `pointer-events: none` 不阻塞任何交互 |
 | `shell.bottom` | `BottomBar` | 底部操作条（新建 / 会话 / 文件 / 图片 / 插件 / 更多）；官方全局面板打开时自动隐藏 |
+
+抽屉入口**只有左缘手势**，不占任何槽位：`bindDrawerGesture` 常驻 `window` 捕获阶段（touch + pointer 双通道去重），不依赖槽位 / 页面挂载，任何插件面板页都可用——0.1.15 起移除了 ☰ 与浮动侧栏键，避免遮挡子页面自身的返回键。
 
 所有 slot 注册都单独 try/catch：某一槽位失败只降级对应功能，不拖垮插件。
 
 ## 4. 分层结构
 
-`lib/client.js` 约 5100 行，自上而下分五层。依赖方向单向向下：
+`lib/client.js` 约 5800 行，自上而下分五层。依赖方向单向向下：
 
 ```
 ┌──────────────────────────────────────────────────────┐
 │ ⑤ 组件层（React）                                     │
-│    HamburgerButton · BottomBar · Sheet · AddPager    │
-│    OverlayLayer（含全部手势监听与 Esc 出口）            │
+│    BottomBar · Sheet · AddPager · OverlayLayer       │
+│    （遮罩 / Esc 出口；抽屉手势不在此层，见下）           │
 ├──────────────────────────────────────────────────────┤
 │ ④ 功能域层                                            │
 │    抽屉 / 底部表 / 加号面板 / 设置页手机化 / 会话表      │
 │    （openSheet · tagComposerMenus · tagSettings ·    │
-│      sessionRows …）                                  │
+│      bindDrawerGesture · sessionRows …）              │
 ├──────────────────────────────────────────────────────┤
 │ ③ 同步引擎层                                          │
 │    锚点标记 applyAnchors / clearAnchors               │
 │    MutationObserver 驱动的 sync* 家族                 │
-│    （syncPageHead · syncComposerChips ·              │
-│      syncSettingsPanel · syncAddPaging …）            │
+│    （syncComposerChips · syncSettingsPanel ·         │
+│      syncAddPaging …）                                │
 ├──────────────────────────────────────────────────────┤
 │ ② 纯函数层（全部有单测，经 __test 出口导出）            │
 │    classify · swipeDirection · drawerStartLimit ·    │
-│    floatMenuLeft · nextTabIndex · planAddPages ·     │
-│    tintHash · sessionRows …                           │
+│    decideDrawerGesture · drawerSettle · scrollerConsumes │
+│    nextTabIndex · planAddPages · tintHash ·          │
+│    sessionRows …                                      │
 ├──────────────────────────────────────────────────────┤
 │ ① 基础层                                              │
 │    宿主/模式判定 · i18n(STRINGS/t) · 布局状态 store    │
@@ -91,11 +93,11 @@ dsh-mobile-layout 是一个 Cordis 插件，把 DSH Web 客户端在**手机竖�
 
 ### 4.1 锚点标记层（插件与官方 DOM 的唯一接触面）
 
-插件不改官方 DOM 结构，只给官方节点**打属性**（40+ 个 `data-dshm-*` 常量，如 `ATTR_SIDEBAR`、`ATTR_BOTTOM`、`ATTR_POPOVER`、`ATTR_SETTINGS_PANEL`、`ATTR_PAGE_HEAD`）：
+插件不改官方 DOM 结构，只给官方节点**打属性**（40+ 个 `data-dshm-*` 常量，如 `ATTR_SIDEBAR`、`ATTR_BOTTOM`、`ATTR_POPOVER`、`ATTR_SETTINGS_PANEL`）：
 
 - 打上属性 = 声明"这个官方节点的手机形态由我负责"；样式层按属性选择器接管外观。
 - 官方 React 随时可能重渲染掉属性，所以每个 `sync*` 都是**幂等重打**：由 MutationObserver 触发，发现属性丢失就补。
-- 部分机制需要反向变量：`syncPageHead` 把测得的几何写入 CSS 变量（`--dshm-float-menu-*`、`--dshm-page-head-shift`），样式层消费。
+- 部分机制需要反向变量：`syncComposerEdge` 把测得的几何写入 CSS 变量，样式层消费；抽屉跟手期则由手势引擎直接写内联样式（见 §5 抽屉行）。
 
 ### 4.2 布局状态 store
 
@@ -106,18 +108,17 @@ dsh-mobile-layout 是一个 Cordis 插件，把 DSH Web 客户端在**手机竖�
 MutationObserver 在 mobile 模式下全局监听，回调里按需分发到各 `sync*`。设计约定：
 
 - **幂等**：同一状态多次执行结果一致，observer 抖动无副作用；
-- **几何走纯函数**：探测（如页头行判定）取得原始几何后，决策交给纯函数（`floatMenuLeft`、`drawerStartLimit`），引擎只负责把结果写回 DOM/CSS 变量；
-- **防抖合帧**：滚动跟踪用 rAF 合帧（`onDocScroll`），resize/visualViewport 用 120ms 防抖。
+- **几何走纯函数**：探测取得原始几何后，决策交给纯函数（`scrollerConsumes`、`drawerStartLimit`、`drawerSettle`），引擎只负责把结果写回 DOM/CSS 变量；
+- **防抖合帧**：resize/visualViewport 用 120ms 防抖。
 
 ## 5. 关键机制一览
 
 | 机制 | 入口 | 说明 |
 |---|---|---|
-| 抽屉 | `requestDrawer` + OverlayLayer 手势 | 右滑开（起手区 = 左 40% 屏宽，QQ 式）、左滑关、Esc / 遮罩关；焦点进出由独立 effect 管理 |
+| 抽屉 | `bindDrawerGesture` + `requestDrawer` | window 捕获阶段常驻手势（任何页面可用）：左 40% 起手右滑开、展开后任意位置左滑关、Esc / 遮罩关；24px 定向即跟手，松手按位移 / 速度吸附；焦点进出由独立 effect 管理 |
 | 底部表 | `openSheet` / `Sheet` | 会话表（工作区分组 + 吸顶头）/ 插件表；最多占屏高 64%，顶部把手可下拉关闭 |
 | 加号面板 | `openOfficialAddMenu` + `tagComposerMenus` | 程序化点击官方 ⊕，对面板 surface 打标 + 分页 + 配色；与软键盘互斥 |
 | 设置页手机化 | `tagSettings` | 官方设置对话框改全屏：品牌行 + 可横滑页签 + 返回键；自带页签滑动手势 |
-| 页头侧栏键 | `syncPageHead` + `OverlayLayer` 兜底 | 全局面板页 Sidebar 键贴标题左缘；页头几何滚动跟踪，滚出视口隐藏 |
 | Composer 融合 | `syncComposerPad` / `syncComposerFrame` | 输入区去边框融合底部面板；权限 / 模型 chip 留输入行 |
 
 ## 6. 模块地图（函数分组）
@@ -128,13 +129,13 @@ MutationObserver 在 mobile 模式下全局监听，回调里按需分发到各 
 | i18n | `STRINGS` · `t` · `detectLang` · `setLang` |
 | 状态 store | `getState` · `setState` · `subscribe` · `useLayoutState` |
 | 锚点 / 样式 | `applyAnchors` · `clearAnchors` · `injectStyle` · `frameElement` |
-| 页头 / 浮动键 | `findPageTitle` · `floatMenuLeft` · `syncPageHead` · `clearPageHead` |
+| 抽屉手势 | `bindDrawerGesture` · `decideDrawerGesture` · `drawerSettle` · `scrollerConsumes` · `drawerStartLimit` |
 | Composer | `syncComposerChips` · `syncComposerPad` · `syncComposerFrame` · `syncHero` |
 | 加号面板 | `collectAddOptions` · `planAddPages` · `syncAddPaging` · `planAddTints` · `tintHash` |
 | 设置页 | `tagSettings` · `settingsTabItems` · `switchSettingsTab` · `ensureSettingsBack` · `centerSettingsTab` |
 | 会话表 | `sessionRows` · `groupSessionsByWorkspace` · `workspaceLabelFor` · `formatRelativeTime` |
 | 浮层 / 手势 | `openSheet` · `closeSheet` · `openOfficialAddMenu` · `closeOfficialAddMenu` · `syncOverlayHistory` · `requestDrawer` |
-| 组件 | `HamburgerButton` · `BottomBar` · `Sheet` · `AddPager` · `OverlayLayer` |
+| 组件 | `BottomBar` · `Sheet` · `AddPager` · `OverlayLayer` |
 | 生命周期 | `apply` · `dispose` |
 
 ## 7. 生命周期
@@ -158,7 +159,7 @@ dispose()
 
 ## 8. 测试与质量边界
 
-- **纯函数 + 源码契约单测**（69 项）：所有几何决策、分页、配色、状态机判定都抽成纯函数，经 `module.exports.__test` 出口在 Node 单测中覆盖（vm 沙箱隔离，测试不碰 DOM）。
+- **纯函数 + 源码契约单测**（85 项）：所有几何决策、分页、配色、状态机判定都抽成纯函数，经 `module.exports.__test` 出口在 Node 单测中覆盖（vm 沙箱隔离，测试不碰 DOM）。
 - **包契约自检**：`verify-package` 校验 bundle 内 `VERSION` 与 package.json 一致、发布文件清单完整。
 - **真机验收**：MuMu 模拟器（720×1280）+ Redmi K70 真机两档；验证矩阵与 adb 部署方法见《技术说明》第 6 节。
 - **明确不做的**：不改官方 DOM 结构（只打属性）、不拦截系统边缘手势（WebView 无权限）、桌面端不激活。

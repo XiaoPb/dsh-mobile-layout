@@ -6,10 +6,10 @@
 
 - **单文件产物**：`lib/client.js` 即发布物，无构建步骤。文件是 `define(...)` 工厂（Cordis 客户端模块协议），内部自带 `module.exports` 闭包，只 require 官方提供的 `react`。
 - **版本契约**：文件内 `const VERSION` 必须与 `package.json` 一致，`npm run verify-package` 负责校验（发布前 CI 强制）。改版本号两处要同步。
-- **测试出口**：`module.exports.__test` 导出全部纯函数与常量（`classify`、`swipeDirection`、`drawerStartLimit`、`floatMenuLeft`、`planAddPages`、`tintHash`、`sessionRows`、`shouldCloseSheetByDrag`、`STRINGS` 等），供 `test/*.test.js` 使用。注意 `__test` 对象出自 vm 沙箱（跨 realm），断言对象值时先逐字段取值或转本域数组，**不要直接 `deepEqual` 沙箱对象**（原型不同必挂）。
+- **测试出口**：`module.exports.__test` 导出全部纯函数与常量（`classify`、`swipeDirection`、`drawerStartLimit`、`decideDrawerGesture`、`drawerSettle`、`scrollerConsumes`、`planAddPages`、`tintHash`、`sessionRows`、`shouldCloseSheetByDrag`、`STRINGS` 等），供 `test/*.test.js` 使用。注意 `__test` 对象出自 vm 沙箱（跨 realm），断言对象值时先逐字段取值或转本域数组，**不要直接 `deepEqual` 沙箱对象**（原型不同必挂）。
 
 ```sh
-npm run check     # node --check → 69 项单测 → verify-package 包契约自检
+npm run check     # node --check → 85 项单测 → verify-package 包契约自检
 npm test          # 仅单测
 npm run pack:dry  # 预览发布文件清单
 ```
@@ -21,9 +21,10 @@ npm run pack:dry  # 预览发布文件清单
 | 进入手机模式 | 竖屏 + 短边 ≤ 600 CSS px + 长宽比 ≥ 1.25 | 覆盖主流手机 CSS 视口；桌面最小可缩窗 520×600 会被宿主判据挡住 |
 | 保持模式（滞回） | 短边 ≤ 640 / 比例 ≥ 1.15 | 避免 600~640 区间窗口缩放来回抖动 |
 | 横滑最小位移 `SWIPE_MIN` | 48 CSS px | 低于此视为误触；纵向超过横向 0.72 倍不认（竖向滚动优先） |
+| 意图确认 `SWIPE_ARM_PX` | 24 CSS px | 24px 定向即进入跟手：更晚的话第三方页面已把 touchmove 吃掉（终端 / VS Code 组件 stopPropagation），手势跟不上 |
 | 抽屉开栏起手区 `drawerStartLimit` | 屏宽左 40%，钳 64–200 CSS px | 全面屏把系统返回绑在硬边缘，24px 边缘区根本滑不到；QQ 式中间偏左起手。钳制防窄屏退化成边缘手势、宽屏和内容横滑打架 |
-| 页头侧栏键贴靠 `floatMenuLeft` | `left = 标题左缘 − 44`（36px 键 + 8px 间距） | 视觉嵌入标题行、标题零平移；标题左缘 < 52px 时退回「键固定 8px + 标题右移 ≤48px」兜底 |
-| 页头滚动隐藏判据 | 页头行相对 center 顶部位移 `topGap < −4` | **不能用绝对阈值**：实测各页/各设备静止标题顶从 8px 到 56px 不等（MuMu 8/24/44，K70 28），只有相对位移是设备无关且兼容吸顶头的判据 |
+| 横滚让路 `scrollerConsumes` | 方向 + 边界判定 | 右滑看 `scrollLeft > 0`、左滑看是否到右端（1px 亚像素容差）；不是「起手在横滚容器内就让路」——终端 / 宽表整页横滚时最左端起手仍要能开抽屉（0.1.15 修） |
+| 松手吸附 `drawerSettle` | 甩动优先 \|v| ≥ 0.35 px/ms；否则位移比例 ≥ 0.38 展开 | 快速轻扫不必拖过半屏；两阈值取偏小值，手机上「拖出 1/3 屏 + 稍快」就该算明确意图。比例阈值两侧对称（展开态拖回 <0.38 才收） |
 | ⊕ 面板焦点抑制时长 | 输入控件禁用 600ms | 官方打开面板时的异步 refocus 落在窗口内；过长影响用户立刻打字 |
 | 键盘高来源 `resolveImeHeight` | 原生桥 > 实测/持久化 > 视口 42% 估值 | 原生 WindowInsets 最准且无需弹键盘；visualViewport 需真弹一次（K70 实测 resize 为一次性跳变，收缩量即键盘高）；估值仅首次兜底 |
 | 面板 ⇄ 键盘切换 | 揭开 / 覆盖（`startImeSwap`） | 键盘绘制在 WebView 之上，面板与输入行提前就位靠键盘滑出揭开；resize 一次性跳变时刻换算 padding 保持输入行屏幕位置（0.1.12，替代 0.1.11 等高瞬换） |
@@ -33,20 +34,18 @@ npm run pack:dry  # 预览发布文件清单
 
 ## 3. 各功能域实现要点
 
-### 3.1 页头侧栏键（全局面板）
+### 3.1 抽屉手势（0.1.15 全局化 + 跟手）
 
-- `syncPageHead()` 在官方全局面板页里**纯几何探测**页头行（贴近 center 顶端、横向 ≥ 半宽、高 14–160、不含输入控件），再在页头内找最上层纯文本叶子作标题。
-- 键本体由 `OverlayLayer` 渲染（fixed 定位），几何写入 CSS 变量：`--dshm-float-menu-top`（垂直对齐标题行中线）、`--dshm-float-menu-left`（水平贴标题左缘）。
-- 滚动跟踪：document 捕获 scroll（rAF 合帧）重算 `syncPageHead`；`topGap < −4` 打 `data-dshm-float-menu-hidden`（opacity 0 + pointer-events none，120ms 过渡），滚回顶部回显。该页从未出现过页头时维持缺省位不隐藏。
-- 图标为 Sidebar（panel-left 形：圆角矩形 + 左竖线，`SidebarIcon`）；会话头里的抽屉入口保持 ☰ 汉堡（官方 header leading 语义），两者不混用。
-- 故意**不做 DOM 插入**：面板页页头结构各异且归官方 React 管辖，插入节点会被重渲染吞掉或需改造行容器，回归风险大于收益；fixed 键 + CSS 变量贴靠是零侵入解。
+- **入口只有手势，无按键**：☰ 与浮动侧栏键已移除——子页面（插件二级页等）自己的返回键会被按键遮挡，且手势全局化后按键冗余。`verify-package` 里「旧按键标记必须不存在」防回潮。
+- **事件源**：`bindDrawerGesture` 常驻 `window` **捕获阶段**（touch + pointer 双通道按先到者去重，全部 passive）。捕获先于一切目标处理器，其它插件页面 `stopPropagation` / `preventDefault` 都拦不住，也不再随槽位卸载失效。`release()` 单一清理出口。
+- **判定**：抽成纯函数 `decideDrawerGesture`——左 40% 起手区右滑开、展开后任意位置左滑收；横滚容器按「方向 + 边界」让路（`scrollerConsumes`），终端 / 宽表整页在最左端起手右滑也能开；`data-dshm-swipe-ignore` 子树是逃生口。起手区判定在捕获阶段读 DOM 前，浮层（底部表 / ⊕ 面板 / 设置页）打开时不叠开。
+- **跟手**：24px 定向即进入跟手（`beginFollow`）——侧栏打 `data-dshm-dragging` 关过渡（官方 `data-dragging` 同语义），`translate3d` 内联逐帧驱动；遮罩用自建 `.dshm-drag-mask`（透明度跟进度，无过渡），跟手期间官方 React 遮罩 `display:none` 让位防双层发黑。
+- **吸附**：松手 `drawerSettle` 按速度 / 位移比例决定终态，交还 CSS 过渡补间（`--ds-transition-duration-slow` + `--ds-ease-in-out`），360ms 后清内联样式并把遮罩交还官方 React 遮罩；官方遮罩始终不来的宿主（overlay 槽位注册失败）轮询 600ms 后挂 MutationObserver 监听 `data-sidebar-collapsed`，抽屉收起时淡出自建遮罩。
+- **打断与复核**：多点触控 / `pointercancel` / `touchcancel` 都按当前进度吸附收尾；官方 `toggleSidebar` 是异步提交，触发后 320ms 按 DOM 复核一次（只补一次），快速连滑不会双翻。`prefers-reduced-motion` 宿主退化为阈值触发不跟手。
+- **视觉**：遮罩 `--dsw-alias-bg-mask-1`、抽屉阴影 `--dsw-shadow-lv3`、圆角 `--dsw-radius-lg`，全部走官方主题 token（带缺省兜底）。
+- **调试**：`localStorage.dshm-debug = 1` 输出拒绝原因（`H_SCROLLER` / `BLOCKED_LAYER` / `OUT_OF_ZONE` / `TOO_VERTICAL` / `SWIPE_IGNORE` / `RIGHTBAR_FULLSCREEN`）与吸附参数（progress / velocity / 终态），现场一条日志定位根因。
 
-### 3.2 抽屉手势
-
-- 监听在 document 上（passive），`touchstart` 记起点并判定起手区（含三道防冲突闸：底部表 / ⊕ 面板 / 设置页打开时不叠开；起手点在横向滚动容器——`scrollWidth > clientWidth + 4` 且 `overflow-x: auto|scroll`，向上找 6 层——内不触发），`touchmove` 里按方向阈值判定意图。
-- 打开方向限起手区，**收起方向（左滑关抽屉）全屏任意位置可用**；系统边缘返回无法拦截也不应拦截（WebView 无权限），扩大起手区是唯一正解。
-
-### 3.3 ⊕ 加号面板与输入法互斥
+### 3.2 ⊕ 加号面板与输入法互斥
 
 根因链：输入法开着点 ⊕ → 官方打开面板还会**异步 refocus** 输入框 → 面板与软键盘同屏。只 blur 挡不住 refocus（实测真机「键盘拉起→收起→弹面板」体验交叉）。方案：
 
@@ -62,22 +61,22 @@ npm run pack:dry  # 预览发布文件清单
    - **标记必须挂在 `<html>` 上**：挂在面板节点上会被官方 React 收起/打开时的重渲染抹掉，面板闪现一下（看起来像「收起又快速打开」，真机复现过）；html 属性不受官方管辖。切换标记在面板消失时（`syncPanelSpace` no-panel 分支）清除，面板存续期间保持免动画，防止清除后 pop-in 动画重放；
    - 0.1.11 的等高方案（`--dshm-add-panel-h` / `addPanelHeight`）已删除：等高是为「瞬换」服务的几何前提，揭开模型不需要，且用户要求面板保持内容自适应高度。
 
-### 3.4 加号面板分页与配色
+### 3.3 加号面板分页与配色
 
 - 官方 ⊕ 菜单 surface 被 `tagComposerMenus` 打标后，`collectAddOptions()` 收集条目（去重：`isDuplicateAddOption` 认官方与 drop 别名），`planAddPages()` 按行上限分页，`AddPager` 渲染页点。
 - 配色：`tintHash()` 按别名哈希从 12 档柔和色（蓝/橙/紫/绿 4 系）落位，同类型同色、同屏不撞色；新增功能零代码自动配色。
 
-### 3.5 设置页手机化
+### 3.4 设置页手机化
 
 - 官方设置对话框被 `tagSettings` 整体改造为全屏面板（`data-dshm-settings-*` 属性族）：品牌行 + 可横滑页签 + 返回键。
 - 页签滑动：`canStartSettingsSwipe` 判定起手合法性（不在卡片/列表内），`swipeDirection` 判方向，`nextTabIndex` 钳边界不循环，`centerSettingsTab` 滚动对齐激活页签。
-- 返回键 `ensureSettingsBack` 是**真实 DOM 插入**到官方页签行最左——与浮动键不同，此处行容器单一可控，每次同步重插防官方清除。
+- 返回键 `ensureSettingsBack` 是**真实 DOM 插入**到官方页签行最左——此处行容器单一可控，每次同步重插防官方清除。
 
-### 3.6 Composer 融合
+### 3.5 Composer 融合
 
 `syncComposerPad` / `syncComposerFrame` / `syncComposerEdge` 把输入区压平融合底部面板（去圆角/边框/阴影、全宽同表面、1px 分界）；`syncComposerChips` 把权限 / 模型短名 chip（`permissionShort` / `modelShort`，中英文表驱动）留在输入行，「完全访问 / Full access」恒标红。
 
-### 3.7 底部表（会话表 / 插件表）的视觉与把手
+### 3.6 底部表（会话表 / 插件表）的视觉与把手
 
 **这是一条有意的本地视觉分支**：会话表与插件表不再沿用自绘的「白卡片 + 16px 圆角」，而是对齐引擎 v1.4.57 官方弹层（「预览版说明」卡片）的设计语言。同步上游时这层样式可能被整体覆盖，`test/sheet.test.js` 与 Android 侧 `scripts/probes/_test_builtin_plugins.py` 都做了字符串锁，CI/探针会先报出来。
 
@@ -98,7 +97,7 @@ npm run pack:dry  # 预览发布文件清单
 
 - 打开任一浮层先关其他（`openSheet` 内先 `requestDrawer(false)` 等）；层序栈 `syncOverlayHistory` 记录打开顺序，Esc / 系统返回 / 遮罩点击 / 把手下拉按栈逐层关（`onKeyDown` 的优先级：设置页 → 底部表 → ⊕ 面板 → 抽屉 → 右栏全屏）。
 - 关闭瞬间记录 `popoverClosedAt` 类时间戳，防止官方浮层的收起事件又触发插件侧重开。
-- 官方全局面板（panelInfo）激活时：底部条隐藏、hero 清除、侧栏键与手势接管——面板页自身不是插件的浮层，是官方页面。
+- 官方全局面板（panelInfo）激活时：底部条隐藏、hero 清除、手势接管——面板页自身不是插件的浮层，是官方页面。
 
 ## 6. 真机部署与调试（Redmi K70 / MuMu）
 
@@ -121,7 +120,7 @@ MSYS_NO_PATHCONV=1 "$ADB" -s <serial> exec-in run-as app.dsh.mobile sh -c \
 把只读 IIFE 探针**追加**到设备端 `client.js` 末尾（测完推回干净版），复刻可疑判定逻辑并把中间量 `console.log('[P2]' + JSON.stringify(...))`，`adb logcat -d` 取证：
 
 - 探针挂 `scroll`（capture, 捕获阶段 + 350ms 合帧）可实时跟踪几何变化；
-- 0.1.9 前的「滚回顶部不回显」bug 即由此定位：探针证明页面**静止**时标题顶各页在 8~56px 浮动，绝对阈值 `top < 40` 把静止态误判成已滚动 → 改 topGap 相对判据。
+- 探针法的经典战例：0.1.9 前的「滚回顶部不回显」bug（绝对阈值把静止态误判成已滚动）、0.1.15 的抽屉手势失效（第三方页面整页横滚 + 事件被吃，探针证明冒泡监听根本收不到 touchmove）都靠它收敛根因。
 
 ### 6.3 UI 自动化要点
 
