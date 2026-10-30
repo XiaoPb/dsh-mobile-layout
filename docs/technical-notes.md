@@ -6,10 +6,10 @@
 
 - **单文件产物**：`lib/client.js` 即发布物，无构建步骤。文件是 `define(...)` 工厂（Cordis 客户端模块协议），内部自带 `module.exports` 闭包，只 require 官方提供的 `react`。
 - **版本契约**：文件内 `const VERSION` 必须与 `package.json` 一致，`npm run verify-package` 负责校验（发布前 CI 强制）。改版本号两处要同步。
-- **测试出口**：`module.exports.__test` 导出全部纯函数与常量（`classify`、`swipeDirection`、`drawerStartLimit`、`floatMenuLeft`、`planAddPages`、`tintHash`、`sessionRows`、`STRINGS` 等），供 `test/ux.test.js` 使用。注意 `__test` 对象出自 vm 沙箱（跨 realm），断言对象值时先逐字段取值或转本域数组，**不要直接 `deepEqual` 沙箱对象**（原型不同必挂）。
+- **测试出口**：`module.exports.__test` 导出全部纯函数与常量（`classify`、`swipeDirection`、`drawerStartLimit`、`floatMenuLeft`、`planAddPages`、`tintHash`、`sessionRows`、`shouldCloseSheetByDrag`、`STRINGS` 等），供 `test/*.test.js` 使用。注意 `__test` 对象出自 vm 沙箱（跨 realm），断言对象值时先逐字段取值或转本域数组，**不要直接 `deepEqual` 沙箱对象**（原型不同必挂）。
 
 ```sh
-npm run check     # node --check → 55 项单测 → verify-package 包契约自检
+npm run check     # node --check → 69 项单测 → verify-package 包契约自检
 npm test          # 仅单测
 npm run pack:dry  # 预览发布文件清单
 ```
@@ -28,7 +28,8 @@ npm run pack:dry  # 预览发布文件清单
 | 键盘高来源 `resolveImeHeight` | 原生桥 > 实测/持久化 > 视口 42% 估值 | 原生 WindowInsets 最准且无需弹键盘；visualViewport 需真弹一次（K70 实测 resize 为一次性跳变，收缩量即键盘高）；估值仅首次兜底 |
 | 面板 ⇄ 键盘切换 | 揭开 / 覆盖（`startImeSwap`） | 键盘绘制在 WebView 之上，面板与输入行提前就位靠键盘滑出揭开；resize 一次性跳变时刻换算 padding 保持输入行屏幕位置（0.1.12，替代 0.1.11 等高瞬换） |
 | 加号面板分页 | 4 列 × 2 行，超出横向分页 | 单手可达；页签 `pageLabel(i, active)` |
-| 会话表高度上限 | 屏高 60% | 留出底部操作条与输入区 |
+| 会话表高度上限 | 屏高 64%，下限 300px | 官方弹层比例（v1.4.57 视觉分支）；仍留出底部操作条与输入区 |
+| 底部表下拉关闭阈值 `SHEET_DRAG_CLOSE_PX` | 96 CSS px | 约拇指一节：低于此多为误触，高于此用户已明确「不要这张表」 |
 
 ## 3. 各功能域实现要点
 
@@ -76,6 +77,16 @@ npm run pack:dry  # 预览发布文件清单
 
 `syncComposerPad` / `syncComposerFrame` / `syncComposerEdge` 把输入区压平融合底部面板（去圆角/边框/阴影、全宽同表面、1px 分界）；`syncComposerChips` 把权限 / 模型短名 chip（`permissionShort` / `modelShort`，中英文表驱动）留在输入行，「完全访问 / Full access」恒标红。
 
+### 3.7 底部表（会话表 / 插件表）的视觉与把手
+
+**这是一条有意的本地视觉分支**：会话表与插件表不再沿用自绘的「白卡片 + 16px 圆角」，而是对齐引擎 v1.4.57 官方弹层（「预览版说明」卡片）的设计语言。同步上游时这层样式可能被整体覆盖，`test/sheet.test.js` 与 Android 侧 `scripts/probes/_test_builtin_plugins.py` 都做了字符串锁，CI/探针会先报出来。
+
+- **抬升面**：官方卡片是 `rgb(44,44,46)` 卡片压在 `rgb(13,13,14)` 页面上、外加 1px `rgb(61,61,62)` 描边。这里用「页面底色 + 9% 白叠加」等效实现（`linear-gradient(...), var(--dsw-alias-bg-base)`）——浅色主题下白叠加几乎无效，自动退化为白底 + 描边，不需要额外的主题分支。
+- **尺寸**：圆角 28px（只圆上方）、高度上限 `min(max(300px, 64% 视口), 顶部条以下)`、内边距 10px；行高 52px、字号 15px、行圆角 14px；主操作按钮为 999px 胶囊且颜色对调（`label-primary` 作底、`bg-base` 作字）。
+- **入场动效**：遮罩 45% + 180ms 淡入，面板 220ms `cubic-bezier(0.32, 0.72, 0, 1)` 自底部上滑；`prefers-reduced-motion` 段必须同时列 `.dshm-sheet` 与 `.dshm-sheet-mask`（面板的降级容易漏，漏了就是「遮罩不淡入、面板照样滑」）。
+- **把手拖拽关闭**：只在 `.dshm-sheet-grabber` 上识别（`touch-action: none` + pointer capture，避免与列表滚动抢手势）。按下时清掉入场动画与过渡并接管 `transform`，位移实时跟手、向上拖钳 0；松手时 `shouldCloseSheetByDrag(dy)` 判定——超过 `SHEET_DRAG_CLOSE_PX`（96 CSS px，约拇指一节）即关闭，否则 200ms 回弹。`pointercancel` 与 `pointerup` 同路径，被系统手势/来电打断也能正确收尾。
+- **为什么不直接在列表上做下拉**：列表是滚动容器，下拉手势与 `overflow-y: auto` 的回弹/滚动冲突，误关闭率远高于收益；把手是官方卡片自带的「拖拽暗示」，也是唯一能同时表达「可拖」与「不干扰滚动」的位置。
+
 ## 4. i18n
 
 - `STRINGS` 表驱动，`t(key)` 取词；语言跟随官方 `locale` 服务（监听 `locale/change`），服务缺席退回 `<html lang>` / `navigator.language`（`detectLang`）。
@@ -85,7 +96,7 @@ npm run pack:dry  # 预览发布文件清单
 
 浮层四类：抽屉、底部表、⊕ 面板、设置页。互斥规则：
 
-- 打开任一浮层先关其他（`openSheet` 内先 `requestDrawer(false)` 等）；层序栈 `syncOverlayHistory` 记录打开顺序，Esc / 系统返回 / 遮罩点击按栈逐层关（`onKeyDown` 的优先级：设置页 → 底部表 → ⊕ 面板 → 抽屉 → 右栏全屏）。
+- 打开任一浮层先关其他（`openSheet` 内先 `requestDrawer(false)` 等）；层序栈 `syncOverlayHistory` 记录打开顺序，Esc / 系统返回 / 遮罩点击 / 把手下拉按栈逐层关（`onKeyDown` 的优先级：设置页 → 底部表 → ⊕ 面板 → 抽屉 → 右栏全屏）。
 - 关闭瞬间记录 `popoverClosedAt` 类时间戳，防止官方浮层的收起事件又触发插件侧重开。
 - 官方全局面板（panelInfo）激活时：底部条隐藏、hero 清除、侧栏键与手势接管——面板页自身不是插件的浮层，是官方页面。
 
