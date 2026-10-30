@@ -4,4 +4,3 @@ build/
 *.tgz
 .DS_Store
 .workbuddy/
-docs/plan-drawer-gesture.md
