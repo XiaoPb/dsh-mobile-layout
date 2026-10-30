@@ -39,6 +39,9 @@ const {
   isHorizScrollerMetrics,
   scrollerConsumes,
   decideDrawerGesture,
+  drawerSettle,
+  SETTLE_RATIO,
+  SETTLE_VELOCITY,
 } = loadClient().__test
 
 /** 视口宽 411（K70 一类常见手机 CSS 宽），打开区 = 左 40% ≈ 164px。 */
@@ -170,4 +173,37 @@ test('边界让路组合：横滚容器到边界后手势交还抽屉', () => {
   // 中部起手右滑：scrollLeft 有余量 → 让路
   wideTable.scrollLeft = 120
   assert.equal(decide({ dx: 90, dy: 0, startX: 120, hScrollerConsumes: scrollerConsumes(wideTable, 90) }), 'none')
+})
+
+// ---- 跟手吸附（drawerSettle）----
+
+test('常量：吸附位移比例与速度阈值取偏小值（手机轻扫即响应）', () => {
+  assert.equal(SETTLE_RATIO, 0.38)
+  assert.equal(SETTLE_VELOCITY, 0.35)
+})
+
+test('drawerSettle：甩动优先，速度达到阈值按甩动方向吸附', () => {
+  // 从关闭侧拖出 10% 就快速右甩 → 展开
+  assert.equal(drawerSettle(false, 0.1, 0.5), true)
+  // 展开态快速左甩 → 收起（哪怕还没拖回一半）
+  assert.equal(drawerSettle(true, 0.8, -0.4), false)
+  // 恰好达到阈值也算甩动
+  assert.equal(drawerSettle(false, 0.1, SETTLE_VELOCITY), true)
+  assert.equal(drawerSettle(true, 0.9, -SETTLE_VELOCITY), false)
+})
+
+test('drawerSettle：无甩动按位置比例吸附（同一阈值对称判定）', () => {
+  assert.equal(drawerSettle(false, 0.37, 0), false)
+  assert.equal(drawerSettle(false, 0.38, 0), true)
+  // 展开态：拖回比例仍 ≥0.38 视为停在「接近展开」，保持展开；
+  // 拖回 0.38 以下才算明确的收回意图
+  assert.equal(drawerSettle(true, 0.62, 0), true)
+  assert.equal(drawerSettle(true, 0.37, 0), false)
+})
+
+test('drawerSettle：非法输入回落到起点侧，不产生 NaN 分支', () => {
+  assert.equal(drawerSettle(false, NaN, 0), false)
+  assert.equal(drawerSettle(true, NaN, 0), true)
+  assert.equal(drawerSettle(false, 0.5, NaN), true)
+  assert.equal(drawerSettle(true, undefined, null), true)
 })
