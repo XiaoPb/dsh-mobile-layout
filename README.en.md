@@ -20,7 +20,7 @@ A Cordis plugin that turns the DSH web client into a one-handed, touch-first lay
 - **Sidebar key in the title bar**: global panels (plugins / settings / automation / SSH) without a session header get a borderless Sidebar-icon key flush against the left of the page title (visually embedded in the title row; falls back to shifting the title only when the title sits too far left). Hidden while the page is scrolled down, back on scroll-to-top.
 - **Bottom action bar**: new / chat / file / image / plugins / more, pinned right above the composer.
 - **Add panel**: **reveal / cover transition** against the soft keyboard (content-adaptive height; the keyboard slides over to cover the panel and slides away to reveal it, with the input row position preserved via viewport-jump compensation — no animation crossing); a 4×2 icon grid with horizontal paging beyond 8 items; icons are **color-coded by function** (12 soft tints across blue / orange / violet / green — same type keeps the same color, no clashes on screen, new items auto-assigned by alias hash).
-- **Sessions sheet**: grouped by workspace with sticky headers and relative timestamps, capped at 60% of screen height.
+- **Sessions / plugins sheets**: grouped by workspace with sticky headers and relative timestamps, capped at 64% of screen height; **drag the grabber down to dismiss**, styled after the engine's v1.4.57 official sheet (28px corners, raised surface, large title, pill primary action).
 - **Composer merged into the bottom panel**: flat, full-width, single 1px divider; tightened empty state; permission & model short-name chips stay on the input row (**"Full access" is always red**, in both Chinese and English).
 - **Fullscreen settings**: brand row + swipeable tabs + back button; swipe left/right on the content area to switch tabs.
 - **Restyled pickers**: model / permission sub-menus become bottom-sheet lists with the theme-blue selected state.
@@ -36,7 +36,7 @@ A Cordis plugin that turns the DSH web client into a one-handed, touch-first lay
 | **Conservative by form** | Detects three hosts (Android shell / desktop Electron / browser); the desktop DeepSeek Harness app **never activates** the mobile layout at any window size, and other non-phone forms keep the official layout pixel-for-pixel. |
 | **Touch-first** | 44px touch targets, swipe gestures, one-handed reach. |
 | **Stable theming** | Hash-based tint assignment — new feature icons are colored automatically, no code change. |
-| **Verified on device** | MuMu emulator (720×1280) and a Redmi K70 real device; 55 CI unit tests all green. |
+| **Verified on device** | MuMu emulator (720×1280) and a Redmi K70 real device; 69 CI unit tests all green. |
 
 ---
 
@@ -82,7 +82,7 @@ No runtime or dev dependencies; the client is a single-file artifact (no build),
 
 ```sh
 npm run check     # node --check → unit tests → package / bundle contract self-check
-npm test          # unit tests only (55)
+npm test          # unit tests only (69)
 npm run pack:dry  # preview the files that will be published
 ```
 

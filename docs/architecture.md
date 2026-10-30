@@ -114,7 +114,7 @@ MutationObserver 在 mobile 模式下全局监听，回调里按需分发到各 
 | 机制 | 入口 | 说明 |
 |---|---|---|
 | 抽屉 | `requestDrawer` + OverlayLayer 手势 | 右滑开（起手区 = 左 40% 屏宽，QQ 式）、左滑关、Esc / 遮罩关；焦点进出由独立 effect 管理 |
-| 底部表 | `openSheet` / `Sheet` | 会话表（工作区分组 + 吸顶头）/ 插件表；最多占屏高 60% |
+| 底部表 | `openSheet` / `Sheet` | 会话表（工作区分组 + 吸顶头）/ 插件表；最多占屏高 64%，顶部把手可下拉关闭 |
 | 加号面板 | `openOfficialAddMenu` + `tagComposerMenus` | 程序化点击官方 ⊕，对面板 surface 打标 + 分页 + 配色；与软键盘互斥 |
 | 设置页手机化 | `tagSettings` | 官方设置对话框改全屏：品牌行 + 可横滑页签 + 返回键；自带页签滑动手势 |
 | 页头侧栏键 | `syncPageHead` + `OverlayLayer` 兜底 | 全局面板页 Sidebar 键贴标题左缘；页头几何滚动跟踪，滚出视口隐藏 |
@@ -158,7 +158,7 @@ dispose()
 
 ## 8. 测试与质量边界
 
-- **纯函数单测**（55 项）：所有几何决策、分页、配色、状态机判定都抽成纯函数，经 `module.exports.__test` 出口在 Node 单测中覆盖（vm 沙箱隔离，测试不碰 DOM）。
+- **纯函数 + 源码契约单测**（69 项）：所有几何决策、分页、配色、状态机判定都抽成纯函数，经 `module.exports.__test` 出口在 Node 单测中覆盖（vm 沙箱隔离，测试不碰 DOM）。
 - **包契约自检**：`verify-package` 校验 bundle 内 `VERSION` 与 package.json 一致、发布文件清单完整。
 - **真机验收**：MuMu 模拟器（720×1280）+ Redmi K70 真机两档；验证矩阵与 adb 部署方法见《技术说明》第 6 节。
 - **明确不做的**：不改官方 DOM 结构（只打属性）、不拦截系统边缘手势（WebView 无权限）、桌面端不激活。
