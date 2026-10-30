@@ -502,15 +502,16 @@ test('tintHash：同键恒等、异键大概率不同、对空值稳定', () => 
   assert.ok(tintHash('alias:file') >= 0)
 })
 
-test('drawerStartLimit：打开区为左 40% 屏宽，钳 64–200', () => {
-  // K70 / 常见手机 CSS 宽 ~390-430：0.4 倍落在 156-172，中间偏左起手可开
-  assert.equal(drawerStartLimit(411), 164)
-  assert.equal(drawerStartLimit(390), 156)
-  assert.equal(drawerStartLimit(360), 144)
-  // 窄屏（分屏 / 小窗）不低于 64，避免退化成纯边缘手势
-  assert.equal(drawerStartLimit(150), 64)
-  // 宽屏（平板横竖）不超 200，避免和内容横滑打架
-  assert.equal(drawerStartLimit(800), 200)
+test('drawerStartLimit：打开区为左 60% 屏宽，下限 64', () => {
+  // K70 / 常见手机 CSS 宽 ~390-430：0.6 倍落在 234-258，左大半屏起手可开
+  assert.equal(drawerStartLimit(411), 247)
+  assert.equal(drawerStartLimit(390), 234)
+  assert.equal(drawerStartLimit(360), 216)
+  // 极窄屏（分屏 / 小窗）不低于 64，避免退化成纯边缘手势（150*0.6=90 仍高于下限）
+  assert.equal(drawerStartLimit(150), 90)
+  assert.equal(drawerStartLimit(100), 64)
+  // 宽屏（平板横竖）按 60% 跟随
+  assert.equal(drawerStartLimit(800), 480)
   // 非法输入给保守缺省
   assert.equal(drawerStartLimit(0), 96)
   assert.equal(drawerStartLimit(NaN), 96)

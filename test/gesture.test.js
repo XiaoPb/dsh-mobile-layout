@@ -75,10 +75,10 @@ test('decideDrawerGesture：起手区内右滑 → open', () => {
 })
 
 test('decideDrawerGesture：起手出区（右侧大半屏起手）不开', () => {
-  assert.equal(decide({ dx: 80, dy: 0, startX: 165 }), 'none')
+  assert.equal(decide({ dx: 80, dy: 0, startX: 250 }), 'none')
   assert.equal(decide({ dx: 80, dy: 0, startX: 300 }), 'none')
-  // 起手区边界按 drawerStartLimit 钳制后的宽度算（411 → 164）
-  assert.equal(drawerStartLimit(W), 164)
+  // 起手区边界按 drawerStartLimit 钳制后的宽度算（411 → 247）
+  assert.equal(drawerStartLimit(W), 247)
 })
 
 test('decideDrawerGesture：抽屉已开时右滑无事发生', () => {
@@ -209,17 +209,20 @@ test('drawerSettle：非法输入回落到起点侧，不产生 NaN 分支', () 
   assert.equal(drawerSettle(true, undefined, null), true)
 })
 
-test('settingsSettle：位移比例越过阈值（左滑为负）关闭设置页', () => {
+test('settingsSettle：位移比例越过阈值（左右对称）关闭设置页', () => {
   assert.equal(settingsSettle(-0.38, 0), true)
   assert.equal(settingsSettle(-0.37, 0), false)
-  // 右滑（正比例）永不关闭
-  assert.equal(settingsSettle(0.5, 0), false)
+  // 边界外右滑（翻页容器吞不掉的方向）同样退出
+  assert.equal(settingsSettle(0.38, 0), true)
+  assert.equal(settingsSettle(0.37, 0), false)
 })
 
-test('settingsSettle：左甩优先，右甩永远不关闭', () => {
+test('settingsSettle：甩动需与位移同向，反向甩动视为弹回', () => {
   assert.equal(settingsSettle(-0.05, -SETTLE_VELOCITY), true)
   assert.equal(settingsSettle(-0.05, -0.5), true)
+  // 拖出后反向甩回 → 弹回
   assert.equal(settingsSettle(-0.9, 0.6), false)
+  assert.equal(settingsSettle(0.9, -0.6), false)
 })
 
 test('settingsSettle：非法输入不产生 NaN 分支，一律弹回', () => {
