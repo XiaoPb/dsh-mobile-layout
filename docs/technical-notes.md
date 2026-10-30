@@ -9,7 +9,7 @@
 - **测试出口**：`module.exports.__test` 导出全部纯函数与常量（`classify`、`swipeDirection`、`drawerStartLimit`、`decideDrawerGesture`、`drawerSettle`、`scrollerConsumes`、`planAddPages`、`tintHash`、`sessionRows`、`shouldCloseSheetByDrag`、`STRINGS` 等），供 `test/*.test.js` 使用。注意 `__test` 对象出自 vm 沙箱（跨 realm），断言对象值时先逐字段取值或转本域数组，**不要直接 `deepEqual` 沙箱对象**（原型不同必挂）。
 
 ```sh
-npm run check     # node --check → 85 项单测 → verify-package 包契约自检
+npm run check     # node --check → 88 项单测 → verify-package 包契约自检
 npm test          # 仅单测
 npm run pack:dry  # 预览发布文件清单
 ```
@@ -22,7 +22,7 @@ npm run pack:dry  # 预览发布文件清单
 | 保持模式（滞回） | 短边 ≤ 640 / 比例 ≥ 1.15 | 避免 600~640 区间窗口缩放来回抖动 |
 | 横滑最小位移 `SWIPE_MIN` | 48 CSS px | 低于此视为误触；纵向超过横向 0.72 倍不认（竖向滚动优先） |
 | 意图确认 `SWIPE_ARM_PX` | 24 CSS px | 24px 定向即进入跟手：更晚的话第三方页面已把 touchmove 吃掉（终端 / VS Code 组件 stopPropagation），手势跟不上 |
-| 抽屉开栏起手区 `drawerStartLimit` | 屏宽左 40%，钳 64–200 CSS px | 全面屏把系统返回绑在硬边缘，24px 边缘区根本滑不到；QQ 式中间偏左起手。钳制防窄屏退化成边缘手势、宽屏和内容横滑打架 |
+| 抽屉开栏起手区 `drawerStartLimit` | 屏宽左 60%，下限 64 CSS px | 全面屏把系统返回绑在硬边缘，24px 边缘区根本滑不到；QQ 式中间偏左起手。0.2.10 由 40% 扩到 60% 并去掉 200 上限（用户实测中段起手更自然）；下限防极窄屏退化成纯边缘手势 |
 | 横滚让路 `scrollerConsumes` | 方向 + 边界判定 | 右滑看 `scrollLeft > 0`、左滑看是否到右端（1px 亚像素容差）；不是「起手在横滚容器内就让路」——终端 / 宽表整页横滚时最左端起手仍要能开抽屉（0.1.15 修） |
 | 松手吸附 `drawerSettle` | 甩动优先 \|v| ≥ 0.35 px/ms；否则位移比例 ≥ 0.38 展开 | 快速轻扫不必拖过半屏；两阈值取偏小值，手机上「拖出 1/3 屏 + 稍快」就该算明确意图。比例阈值两侧对称（展开态拖回 <0.38 才收） |
 | ⊕ 面板焦点抑制时长 | 输入控件禁用 600ms | 官方打开面板时的异步 refocus 落在窗口内；过长影响用户立刻打字 |
@@ -38,10 +38,10 @@ npm run pack:dry  # 预览发布文件清单
 
 - **入口只有手势，无按键**：☰ 与浮动侧栏键已移除——子页面（插件二级页等）自己的返回键会被按键遮挡，且手势全局化后按键冗余。`verify-package` 里「旧按键标记必须不存在」防回潮。
 - **事件源**：`bindDrawerGesture` 常驻 `window` **捕获阶段**（touch + pointer 双通道按先到者去重，全部 passive）。捕获先于一切目标处理器，其它插件页面 `stopPropagation` / `preventDefault` 都拦不住，也不再随槽位卸载失效。`release()` 单一清理出口。
-- **判定**：抽成纯函数 `decideDrawerGesture`——左 40% 起手区右滑开、展开后任意位置左滑收；横滚容器按「方向 + 边界」让路（`scrollerConsumes`），终端 / 宽表整页在最左端起手右滑也能开；`data-dshm-swipe-ignore` 子树是逃生口。起手区判定在捕获阶段读 DOM 前，浮层（底部表 / ⊕ 面板 / 设置页）打开时不叠开。
+- **判定**：抽成纯函数 `decideDrawerGesture`——左 60% 起手区右滑开、展开后任意位置左滑收；横滚容器按「方向 + 边界」让路（`scrollerConsumes`），终端 / 宽表整页在最左端起手右滑也能开；`data-dshm-swipe-ignore` 子树是逃生口。起手区判定在捕获阶段读 DOM 前，浮层（底部表 / ⊕ 面板 / 设置页）打开时不叠开。
 - **跟手**：24px 定向即进入跟手（`beginFollow`）——侧栏打 `data-dshm-dragging` 关过渡（官方 `data-dragging` 同语义），`translate3d` 内联逐帧驱动；遮罩用自建 `.dshm-drag-mask`（透明度跟进度，无过渡），跟手期间官方 React 遮罩 `display:none` 让位防双层发黑。
 - **吸附**：松手 `drawerSettle` 按速度 / 位移比例决定终态，交还 CSS 过渡补间（`--ds-transition-duration-slow` + `--ds-ease-in-out`），360ms 后清内联样式并把遮罩交还官方 React 遮罩；官方遮罩始终不来的宿主（overlay 槽位注册失败）轮询 600ms 后挂 MutationObserver 监听 `data-sidebar-collapsed`，抽屉收起时淡出自建遮罩。
-- **打断与复核**：多点触控 / `pointercancel` / `touchcancel` 都按当前进度吸附收尾；官方 `toggleSidebar` 是异步提交，触发后 320ms 按 DOM 复核一次（只补一次），快速连滑不会双翻。`prefers-reduced-motion` 宿主退化为阈值触发不跟手。
+- **打断与复核**：多点触控 / `pointercancel` / `touchcancel` 都按当前进度吸附收尾；官方 `toggleSidebar` 是异步提交，触发后 320ms 按 DOM 复核一次（只补一次），快速连滑不会双翻。减动效（`prefers-reduced-motion`）宿主**保留跟手**，仅把吸附补间压到 100ms（0.2.4 起；早期「退化为阈值触发」的方案已废弃）。
 - **视觉**：遮罩 `--dsw-alias-bg-mask-1`、抽屉阴影 `--dsw-shadow-lv3`、圆角 `--dsw-radius-lg`，全部走官方主题 token（带缺省兜底）。
 - **调试**：`localStorage.dshm-debug = 1` 输出拒绝原因（`H_SCROLLER` / `BLOCKED_LAYER` / `OUT_OF_ZONE` / `TOO_VERTICAL` / `SWIPE_IGNORE` / `RIGHTBAR_FULLSCREEN`）与吸附参数（progress / velocity / 终态），现场一条日志定位根因。
 
@@ -60,6 +60,7 @@ npm run pack:dry  # 预览发布文件清单
    - 面板未渲染完（官方异步打开 + resize 来得早）时保持 hold 位、80ms 轮询到 `--dshm-panel-space` 就绪再落地，避免输入行先坠底再弹起；600ms 兜底强制落地；
    - **标记必须挂在 `<html>` 上**：挂在面板节点上会被官方 React 收起/打开时的重渲染抹掉，面板闪现一下（看起来像「收起又快速打开」，真机复现过）；html 属性不受官方管辖。切换标记在面板消失时（`syncPanelSpace` no-panel 分支）清除，面板存续期间保持免动画，防止清除后 pop-in 动画重放；
    - 0.1.11 的等高方案（`--dshm-add-panel-h` / `addPanelHeight`）已删除：等高是为「瞬换」服务的几何前提，揭开模型不需要，且用户要求面板保持内容自适应高度。
+6. **开合动画（0.2.9）**：面板及其内部菜单（`[data-dshm-popover]` 的直接子元素）入场走 `dshm-pop-in`（0.18s ease-out 上滑淡入，逐层错峰），关闭走对称退场（`closeOfficialAddMenu` 补）；减动效宿主与动画缩放为 0 的宿主整体跳过。此前「面板瞬间出现 / 消失而输入框慢慢过渡」的不同步就是缺这组补间。
 
 ### 3.3 加号面板分页与配色
 
@@ -70,6 +71,8 @@ npm run pack:dry  # 预览发布文件清单
 
 - 官方设置对话框被 `tagSettings` 整体改造为全屏面板（`data-dshm-settings-*` 属性族）：品牌行 + 可横滑页签 + 返回键。
 - 页签滑动：`canStartSettingsSwipe` 判定起手合法性（不在卡片/列表内），`swipeDirection` 判方向，`nextTabIndex` 钳边界不循环，`centerSettingsTab` 滚动对齐激活页签。
+- **左边界滑动退出（0.2.9）**：手势引擎把设置页起手单独拆成 `settingsExit` 模式——面板在屏上且起手在内容区（准入与翻页一致）时进入本轮跟踪，但面板是否跟手由 `settingsPagerCanConsume(dir)` 决定：**方向会被页签翻页吞掉（内容区还没到边界）就让路换页、面板不动；只有最左页签上、翻页吞不掉的方向才让面板跟手退出**（`beginSettingsFollow`）。最终版规则（用户验收收敛）：左滑（翻下一页）一律让路，右滑仅在 `index > 0` 时让路——即「仅保留左边界的滑动退出」，不再从最右页签左滑退出。
+- **退出吸附**：`settingsSettle(ratio, velocity)` 与抽屉同一套甩动优先逻辑（比例 0.38 / 速度 0.35 px/ms），两侧对称（退出中途拖回不吸出）。面板开合本身补 198ms 滑动过渡（`animateSettingsPanel`，`transition`/`translate` 带 `!important` 防官方内联样式抢占），与减动效宿主兼容。
 - 返回键 `ensureSettingsBack` 是**真实 DOM 插入**到官方页签行最左——此处行容器单一可控，每次同步重插防官方清除。
 
 ### 3.5 Composer 融合
@@ -85,6 +88,14 @@ npm run pack:dry  # 预览发布文件清单
 - **入场动效**：遮罩 45% + 180ms 淡入，面板 220ms `cubic-bezier(0.32, 0.72, 0, 1)` 自底部上滑；`prefers-reduced-motion` 段必须同时列 `.dshm-sheet` 与 `.dshm-sheet-mask`（面板的降级容易漏，漏了就是「遮罩不淡入、面板照样滑」）。
 - **把手拖拽关闭**：只在 `.dshm-sheet-grabber` 上识别（`touch-action: none` + pointer capture，避免与列表滚动抢手势）。按下时清掉入场动画与过渡并接管 `transform`，位移实时跟手、向上拖钳 0；松手时 `shouldCloseSheetByDrag(dy)` 判定——超过 `SHEET_DRAG_CLOSE_PX`（96 CSS px，约拇指一节）即关闭，否则 200ms 回弹。`pointercancel` 与 `pointerup` 同路径，被系统手势/来电打断也能正确收尾。
 - **为什么不直接在列表上做下拉**：列表是滚动容器，下拉手势与 `overflow-y: auto` 的回弹/滚动冲突，误关闭率远高于收益；把手是官方卡片自带的「拖拽暗示」，也是唯一能同时表达「可拖」与「不干扰滚动」的位置。
+
+### 3.7 选择器与空态键盘守卫（0.2.5–0.2.8）
+
+模型 / 权限选择器（`[data-dshm-picker]`）在**无模型空态**下打开会弹出软键盘：官方选择器把自动落焦落在内部搜索框上。三层守卫：
+
+1. 打开选择器时主动 `blurComposer()` 收掉落焦（0.2.5，`511ede1`）；
+2. 无 `[role=listbox]` 标记打不上「选择器」身份时，按搜索框 placeholder（`^(搜索|search)/i`）**语义兜底**识别（0.2.7，`cc0669f`）；
+3. `focusin` 兜底防官方异步 refocus；`pointerdown` 对已标记选择器内的输入框**一律记录**到 `pickerFocusGuard.lastTouch`（0.2.8，`9a6e443`——此前记录动作也带 placeholder 条件，缺 placeholder 属性的搜索框漏记，用户真点搜索框会被误 blur）。
 
 ## 4. i18n
 
@@ -150,7 +161,7 @@ WebView JS **没有**"不弹键盘就知道高度"的 API；来源按优先级�
 
 | 限制 | 原因 | 缓解 |
 |---|---|---|
-| 系统边缘返回无法拦截 | WebView 无系统手势权限 | 打开区扩到左 40% 屏宽 |
+| 系统边缘返回无法拦截 | WebView 无系统手势权限 | 打开区扩到左 60% 屏宽 |
 | 官方重渲染可能掉锚点属性 | 插件不拥有官方 DOM | sync* 幂等重打；MutationObserver 兜底 |
 | 锚点失败 | 官方改版 | 打标失败不阻断启动，对应功能静默降级 |
 | 桌面端不激活 | 原生窗控/鼠标交互与移动布局冲突 | 宿主判据硬性排除 |

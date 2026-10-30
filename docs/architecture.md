@@ -115,10 +115,10 @@ MutationObserver 在 mobile 模式下全局监听，回调里按需分发到各 
 
 | 机制 | 入口 | 说明 |
 |---|---|---|
-| 抽屉 | `bindDrawerGesture` + `requestDrawer` | window 捕获阶段常驻手势（任何页面可用）：左 40% 起手右滑开、展开后任意位置左滑关、Esc / 遮罩关；24px 定向即跟手，松手按位移 / 速度吸附；焦点进出由独立 effect 管理 |
+| 抽屉 | `bindDrawerGesture` + `requestDrawer` | window 捕获阶段常驻手势（任何页面可用）：左 60% 起手区右滑开、展开后任意位置左滑关、Esc / 遮罩关；24px 定向即跟手，松手按位移 / 速度吸附；焦点进出由独立 effect 管理 |
 | 底部表 | `openSheet` / `Sheet` | 会话表（工作区分组 + 吸顶头）/ 插件表；最多占屏高 64%，顶部把手可下拉关闭 |
 | 加号面板 | `openOfficialAddMenu` + `tagComposerMenus` | 程序化点击官方 ⊕，对面板 surface 打标 + 分页 + 配色；与软键盘互斥 |
-| 设置页手机化 | `tagSettings` | 官方设置对话框改全屏：品牌行 + 可横滑页签 + 返回键；自带页签滑动手势 |
+| 设置页手机化 | `tagSettings` | 官方设置对话框改全屏：品牌行 + 可横滑页签 + 返回键；自带页签滑动手势；仅最左页签右滑跟手退出（`settingsPagerCanConsume` 按翻页边界让路），开合补滑动过渡 |
 | Composer 融合 | `syncComposerPad` / `syncComposerFrame` | 输入区去边框融合底部面板；权限 / 模型 chip 留输入行 |
 
 ## 6. 模块地图（函数分组）
@@ -159,7 +159,7 @@ dispose()
 
 ## 8. 测试与质量边界
 
-- **纯函数 + 源码契约单测**（85 项）：所有几何决策、分页、配色、状态机判定都抽成纯函数，经 `module.exports.__test` 出口在 Node 单测中覆盖（vm 沙箱隔离，测试不碰 DOM）。
+- **纯函数 + 源码契约单测**（88 项）：所有几何决策、分页、配色、状态机判定都抽成纯函数，经 `module.exports.__test` 出口在 Node 单测中覆盖（vm 沙箱隔离，测试不碰 DOM）。
 - **包契约自检**：`verify-package` 校验 bundle 内 `VERSION` 与 package.json 一致、发布文件清单完整。
 - **真机验收**：MuMu 模拟器（720×1280）+ Redmi K70 真机两档；验证矩阵与 adb 部署方法见《技术说明》第 6 节。
 - **明确不做的**：不改官方 DOM 结构（只打属性）、不拦截系统边缘手势（WebView 无权限）、桌面端不激活。

@@ -6,7 +6,7 @@
 [![Release](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/release.yml/badge.svg)](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/release.yml)
 [![npm](https://img.shields.io/npm/v/@xiaopb/dsh-mobile-layout?label=npm)](https://www.npmjs.com/package/@xiaopb/dsh-mobile-layout)
 
-**DSH mobile portrait layout plugin (v0.1.9)**
+**DSH mobile portrait layout plugin (v0.2.10)**
 
 Docs: [Architecture](docs/architecture.md) ｜ [Technical notes](docs/technical-notes.md) ｜ [中文版](README.md)
 
@@ -16,13 +16,13 @@ A Cordis plugin that turns the DSH web client into a one-handed, touch-first lay
 
 ## Features
 
-- **Sidebar → Drawer**: swipe right from anywhere in the left ~40% of the screen (QQ-style, mid-left start — full-screen gesture phones reserve the hard edge for system back); **finger-following drag with velocity/position snap on release**; tap-mask or left-swipe to close. Gesture is the only entry — no button (so it never covers a sub-page's own back button); the listener lives on `window` in the capture phase and works on every plugin page. Auto-collapses only on real navigation (blank taps, search, account menu, etc. stay open).
+- **Sidebar → Drawer**: swipe right from anywhere in the left ~60% of the screen (QQ-style, mid-left start — full-screen gesture phones reserve the hard edge for system back); **finger-following drag with velocity/position snap on release**; tap-mask or left-swipe to close. Gesture is the only entry — no button (so it never covers a sub-page's own back button); the listener lives on `window` in the capture phase and works on every plugin page. Auto-collapses only on real navigation (blank taps, search, account menu, etc. stay open).
 - **Bottom action bar**: new / chat / file / image / plugins / more, pinned right above the composer.
-- **Add panel**: **reveal / cover transition** against the soft keyboard (content-adaptive height; the keyboard slides over to cover the panel and slides away to reveal it, with the input row position preserved via viewport-jump compensation — no animation crossing); a 4×2 icon grid with horizontal paging beyond 8 items; icons are **color-coded by function** (12 soft tints across blue / orange / violet / green — same type keeps the same color, no clashes on screen, new items auto-assigned by alias hash).
+- **Add panel**: **reveal / cover transition** against the soft keyboard (content-adaptive height; the keyboard slides over to cover the panel and slides away to reveal it, with the input row position preserved via viewport-jump compensation — no animation crossing); open/close slide animations (skipped automatically for reduce-motion users); a 4×2 icon grid with horizontal paging beyond 8 items; icons are **color-coded by function** (12 soft tints across blue / orange / violet / green — same type keeps the same color, no clashes on screen, new items auto-assigned by alias hash).
 - **Sessions / plugins sheets**: grouped by workspace with sticky headers and relative timestamps, capped at 64% of screen height; **drag the grabber down to dismiss**, styled after the engine's v1.4.57 official sheet (28px corners, raised surface, large title, pill primary action).
 - **Composer merged into the bottom panel**: flat, full-width, single 1px divider; tightened empty state; permission & model short-name chips stay on the input row (**"Full access" is always red**, in both Chinese and English).
-- **Fullscreen settings**: brand row + swipeable tabs + back button; swipe left/right on the content area to switch tabs.
-- **Restyled pickers**: model / permission sub-menus become bottom-sheet lists with the theme-blue selected state.
+- **Fullscreen settings**: brand row + swipeable tabs + back button; swipe left/right on the content area to switch tabs; the panel follows the finger and slides out only from the leftmost tab's right-swipe (all other directions yield to tab paging).
+- **Restyled pickers**: model / permission sub-menus become bottom-sheet lists with the theme-blue selected state; no soft keyboard pops up when a picker opens in the empty state (search-box autofocus guard — tapping the search box still focuses normally).
 - **Exclusive overlays + history stack**: drawer / bottom sheet / add panel never stack; closed layer-by-layer. The add panel is also mutually exclusive with the soft keyboard in both directions (opening it first drops composer focus; tapping the input while the panel is open closes the panel first, and the keyboard rises only after the panel is gone).
 - **Accessibility & motion**: `aria-modal`, focus in/out, honors system "reduce motion".
 
@@ -35,7 +35,7 @@ A Cordis plugin that turns the DSH web client into a one-handed, touch-first lay
 | **Conservative by form** | Detects three hosts (Android shell / desktop Electron / browser); the desktop DeepSeek Harness app **never activates** the mobile layout at any window size, and other non-phone forms keep the official layout pixel-for-pixel. |
 | **Touch-first** | 44px touch targets, swipe gestures, one-handed reach. |
 | **Stable theming** | Hash-based tint assignment — new feature icons are colored automatically, no code change. |
-| **Verified on device** | MuMu emulator (720×1280) and a Redmi K70 real device; 69 CI unit tests all green. |
+| **Verified on device** | MuMu emulator (720×1280) and a Redmi K70 real device; 88 CI unit tests all green. |
 
 ---
 
@@ -81,7 +81,7 @@ No runtime or dev dependencies; the client is a single-file artifact (no build),
 
 ```sh
 npm run check     # node --check → unit tests → package / bundle contract self-check
-npm test          # unit tests only (85)
+npm test          # unit tests only (88)
 npm run pack:dry  # preview the files that will be published
 ```
 
