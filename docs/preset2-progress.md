@@ -255,6 +255,18 @@
     `min-width: 84px`，空占位 `width: 0`；打标时把 `[role="tab"]` 内的按钮排除。
     空占位判定必须是 **div + 无 role + 无 aria-label + 无 button/a + 无文字**：
     分栏键是个带 aria-label、文字为空的 `<span>`，只看「有没有文字」会把它归零。
+36. **加号抽屉不是官方 popover，是自绘的 `.dshm-v2-addpanel`**：v2 下点输入框
+    左侧 ⊕ 弹出的是插件自绘面板（grab 手柄 + 附件三块 + 添加/指令两级列表），
+    官方 `[data-dshm-popover]` 那层被压在下面当数据源。
+    想改这个抽屉的高度，改 `[data-dshm-popover]` 完全无效——DOM 里它确实变高了
+    （root 376px、`flex-direction: column`），但视觉上半点不动，因为画白面板的是
+    自绘节点。**判据**：`elementFromPoint` 命中的是 `BUTTON.dshm-v2-addpanel-*`，
+    不是官方节点。
+    高度改法：`.dshm-v2-addpanel` 从 `max-height: 76%`（内容自适应，附件页约
+    36%、二级页会变高）改为固定 `height: 55% * var(--dshm-viewport-height)`，
+    列表 `flex: 1 1 auto` 吃剩余高度、超出自己滚，内容不足时底部留白。
+    与会话抽屉的差别：会话抽屉底部让出导航（顶边 ≈ 252），加号面板贴屏幕底
+    （顶边 ≈ 308），两者高度同为 55%，只是基准不同。
 
 ---
 
