@@ -37,6 +37,7 @@ const {
   planAddPages,
   isSettingsDialog,
   isSettingsContentBlock,
+  settingsFrameMetrics,
   workspaceTitleMap,
   workspaceNameFor,
   workspaceLabelFor,
@@ -182,6 +183,29 @@ test('isSettingsContentBlock：插件配置页（无表单控件）也要能算�
   assert.equal(isSettingsContentBlock({}), false)
   assert.equal(isSettingsContentBlock(null), false)
   assert.equal(isSettingsContentBlock({ width: 'x', height: 'y', nodes: 9, text: '文本' }), false)
+})
+
+test('settingsFrameMetrics：原生悬浮窗左右必须同式（跨机型不偏左）', () => {
+  const frame = settingsFrameMetrics()
+  // 左右表达式逐字符相同 → 任何视口宽度下留白都等宽（官方原先是
+  // 「left 优先 + max-width 截断」，352px 面板全靠左，右侧多出 24px）
+  assert.equal(frame.left, frame.right)
+  // 上下共用 vpad 变量，但各自叠自己的安全区：顶部让状态栏、底部让手势条，
+  // 纵向本就不该相等（与横向不同，横向必须等宽）。
+  assert.ok(frame.top.indexOf('var(--dshm-settings-vpad') >= 0)
+  assert.ok(frame.bottom.indexOf('var(--dshm-settings-vpad') >= 0)
+  assert.ok(frame.bottom.indexOf('safe-bottom') >= 0)
+  // 留白走变量：不同机型由 CSS 里的 clamp() 自适应，JS 不写死 px
+  assert.ok(frame.left.indexOf('var(--dshm-settings-gutter') >= 0)
+  // 变量必须带兜底值：变量未定义时退化为官方默认边距，不会整块失效
+  assert.ok(frame.left.indexOf('12px)') >= 0)
+  assert.ok(frame.top.indexOf('24px)') >= 0)
+  // 安全区：横屏 / 挖孔屏自动避让，且左右必须取同一个（max）值
+  assert.ok(frame.left.indexOf('var(--dshm-settings-safe-x') >= 0)
+  assert.ok(frame.right.indexOf('var(--dshm-settings-safe-x') >= 0)
+  // 宽度上限生效时用 auto 外边距居中（不是靠顶掉 right）
+  assert.equal(frame.margin, '0 auto')
+  assert.ok(frame['max-width'].indexOf('var(--dshm-settings-maxw') >= 0)
 })
 
 test('normalizeWorkspacePath：统一分隔符并去掉尾斜杠', () => {
