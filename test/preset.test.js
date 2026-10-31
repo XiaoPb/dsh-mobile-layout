@@ -39,6 +39,7 @@ const {
   effectiveMode,
   navSlots,
   addPanelGroups,
+  attachAliasOf,
   composerState,
   PRESET_DEFAULT,
   PRESET_CLASSIC,
@@ -158,6 +159,25 @@ test('navSlots：任何组合都不产生重复键', () => {
   }
 })
 
+test('attachAliasOf：剥掉 addOptionKey 的前缀并小写', () => {
+  assert.equal(attachAliasOf({ key: 'alias:file' }), 'file')
+  assert.equal(attachAliasOf({ key: 'label:文件' }), '文件')
+  assert.equal(attachAliasOf({ key: 'group:添加' }), '添加')
+  assert.equal(attachAliasOf({ key: 'File' }), 'file', '裸别名保持不变')
+  assert.equal(attachAliasOf({}), '')
+  assert.equal(attachAliasOf(null), '')
+})
+
+test('addPanelGroups：带 alias:/label: 前缀的真实 key 也能识别为附件', () => {
+  const groups = addPanelGroups([
+    { key: 'alias:file', group: '添加' },
+    { key: 'alias:goal', group: '添加' },
+  ])
+  assert.equal(groups[0].kind, 'attachment')
+  assert.equal(groups[0].items.length, 1)
+  assert.equal(groups[1].group, '添加')
+})
+
 test('addPanelGroups：无组标题退化为单段', () => {
   const groups = addPanelGroups([{ key: 'expert' }, { key: 'skill' }])
   assert.equal(groups.length, 1)
@@ -166,7 +186,7 @@ test('addPanelGroups：无组标题退化为单段', () => {
   assert.equal(groups[0].kind, 'capability')
 })
 
-test('addPanelGroups：多个组按官方顺序保序切段，组名原样', () => {
+test('addPanelGroups：附件项抽出后，能力组按官方顺序保序切段，组名原样', () => {
   const groups = addPanelGroups([
     { key: 'camera', group: '添加' },
     { key: 'photo', group: '添加' },
@@ -174,22 +194,45 @@ test('addPanelGroups：多个组按官方顺序保序切段，组名原样', () 
     { key: 'expert', group: '能力' },
     { key: 'skill', group: '能力' },
   ])
-  assert.deepEqual(
-    groups.map((g) => g.group).join('|'),
-    ['添加', '能力'].join('|'),
-  )
-  assert.deepEqual(
-    groups.map((g) => g.items.length).join(','),
-    '3,2',
-  )
+  // 附件段固定在最前，组名为空；后面的能力组保持官方顺序与组名
+  assert.equal(groups.map((g) => g.kind).join('|'), 'attachment|capability')
+  assert.equal(groups.map((g) => g.group).join('|'), '|能力')
+  assert.equal(groups.map((g) => g.items.length).join(','), '3,2')
 })
 
-test('addPanelGroups：整段命中附件别名才用方块，混入未知项退回整行', () => {
-  const pure = addPanelGroups([{ key: 'camera', group: '添加' }, { key: 'file', group: '添加' }])
-  assert.equal(pure[0].kind, 'attachment')
+test('addPanelGroups：附件项与能力项混在同一官方组时也要拆开', () => {
+  // 真实场景：官方把「文件」和「目标/计划/反馈」都放在「添加」组里
+  const groups = addPanelGroups([
+    { key: 'file', group: '添加' },
+    { key: 'goal', group: '添加' },
+    { key: 'plan', group: '添加' },
+  ])
+  assert.equal(groups.length, 2)
+  assert.equal(groups[0].kind, 'attachment')
+  assert.equal(groups[0].items.length, 1)
+  assert.equal(groups[1].group, '添加')
+  assert.equal(groups[1].items.length, 2)
+})
 
-  const mixed = addPanelGroups([{ key: 'camera', group: '添加' }, { key: 'expert', group: '添加' }])
-  assert.equal(mixed[0].kind, 'capability')
+test('addPanelGroups：官方组被附件摘空时整段不产出', () => {
+  const groups = addPanelGroups([
+    { key: 'camera', group: '附件' },
+    { key: 'file', group: '附件' },
+    { key: 'expert', group: '能力' },
+  ])
+  assert.equal(groups.length, 2)
+  assert.equal(groups[0].group, '', '附件段不带官方组名')
+  assert.equal(groups[1].group, '能力', '被摘空的「附件」组不再单独产出一段')
+})
+
+test('addPanelGroups：只有附件项时只剩一段，且顺序与官方一致', () => {
+  const groups = addPanelGroups([
+    { key: 'camera', group: '添加' },
+    { key: 'file', group: '添加' },
+  ])
+  assert.equal(groups.length, 1)
+  assert.equal(groups[0].kind, 'attachment')
+  assert.equal(groups[0].items.map((i) => i.key).join('|'), 'camera|file')
 })
 
 test('addPanelGroups：同名组不相邻时各成一段，不合并', () => {
