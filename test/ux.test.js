@@ -578,3 +578,66 @@ test('resolveImeHeight：原生注入 > 实测/持久化 > 启发式', () => {
   assert.equal(resolveImeHeight(0, NaN, 917), 385)
   assert.equal(resolveImeHeight(0, -5, 917), 385)
 })
+
+test('classic 空态虚线卡：滚动容器铺满 + 虚线卡左右对称留白（源码契约）', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'lib', 'client.js'), 'utf8')
+  // clip 容器在手机布局全预设打标（classic 也修掉滚动条沟槽的 7px 右偏）
+  assert.ok(
+    /function syncComposerClip\(\) \{[\s\S]{0,200}if \(state\.mode !== MODE_MOBILE \|\| !seat\)/.test(source),
+    'syncComposerClip 应在手机布局全预设生效（不再仅悬浮预设）',
+  )
+  assert.ok(source.includes("'  scrollbar-gutter: auto !important;'"), '应取消滚动条沟槽占位')
+  assert.ok(source.includes("'  width: 100% !important;'") && source.includes("'  margin-right: 0 !important;',"), '滚动容器应钉满宽度并清右外边距')
+  // 空态虚线卡左右留白：左右 margin 表达式逐字符相同（对称契约）
+  const cardSel = '[data-composer-card][class*="cardWorkspaceTrigger"]'
+  const mlIdx = source.indexOf("'  margin-left: var(--dshm-classic-gutter, 12px) !important;',")
+  const mrIdx = source.indexOf("'  margin-right: var(--dshm-classic-gutter, 12px) !important;',")
+  assert.ok(mlIdx > 0 && mrIdx > mlIdx, '虚线卡应有对称的左右 margin 规则（且 margin-left 在前）')
+  assert.ok(source.includes("'  width: calc(100% - 2 * var(--dshm-classic-gutter, 12px)) !important;',"), '宽度应为满宽减两倍 gutter')
+  assert.ok(source.includes(`'html[data-dshm-mode="mobile"][data-dshm-preset="classic"] ${cardSel}::after {'`) || source.includes(cardSel + '::after'), '虚线伪元素应有独立规则')
+  assert.ok(source.includes("'  border-radius: inherit !important;',"), '伪元素圆角应继承卡片圆角')
+  // gutter 变量多机型自适应（clamp 带兜底 12px）
+  assert.ok(source.includes("'  --dshm-classic-gutter: clamp(12px, 3.4vw, 20px);',"), 'gutter 应随屏宽 clamp 自适应')
+})
+
+test('STRINGS：布局模式文案中英文成对，英文不残留中文', () => {
+  const keys = ['layoutMode', 'presetDefault', 'presetDefaultHint', 'presetClassic', 'presetClassicHint', 'presetV2', 'presetV2Hint']
+  const han = /[\u4e00-\u9fa5]/
+  for (const key of keys) {
+    assert.ok(STRINGS.zh[key], 'zh 缺少键：' + key)
+    assert.ok(STRINGS.en[key], 'en 缺少键：' + key)
+    assert.ok(han.test(STRINGS.zh[key]), 'zh 应为中文：' + key)
+    assert.ok(!han.test(STRINGS.en[key]), 'en 不应为中文：' + key + ' -> ' + STRINGS.en[key])
+  }
+})
+
+test('布局模式选择器：切语言后文案会重刷（源码契约）', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'lib', 'client.js'), 'utf8')
+  // 选择器挂在官方滚动容器里、不订阅 state，locale 变化必须显式补一刀
+  assert.ok(
+    /const applyLocale = \(\) => \{[\s\S]{0,160}syncLayoutPicker\(\);/.test(source),
+    'locale/change 回调应调用 syncLayoutPicker 刷新选择器',
+  )
+  // 选中态同步顺带刷文案：官方常常不重建这块 DOM
+  assert.ok(
+    /function syncLayoutPickerState\(box\) \{[\s\S]{0,220}syncLayoutPickerTexts\(box\);/.test(source),
+    'syncLayoutPickerState 应同时刷新文案',
+  )
+  // 每个预设卡片都要有 title/hint 与 aria-label 的刷新路径
+  assert.ok(source.includes('.dshm-layout-title') && source.includes('.dshm-layout-hint'), '应刷新卡片标题与副标题')
+  assert.ok(source.includes("option.setAttribute('aria-label'"), '应同步无障碍标签')
+})
+
+test('原生设置悬浮窗：纵向留白按 10vh 比例并双向钳制（源码契约）', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'lib', 'client.js'), 'utf8')
+  // 上下各留约 10% 视口高；矮视口保底 vpad-min（小手机空隙不塌），高视口
+  // 封顶 vpad-max（面板保有最小高度）。两个端点都必须走变量，方便机型微调。
+  assert.ok(
+    source.includes("'  --dshm-settings-vpad: clamp(var(--dshm-settings-vpad-min, 24px), 10vh, var(--dshm-settings-vpad-max, 120px));',"),
+    'vpad 应为 clamp(min, 10vh, max) 自适应',
+  )
+  assert.ok(source.includes("'  --dshm-settings-vpad-min: 24px;',"), '应有小视口保底变量')
+  assert.ok(source.includes("'  --dshm-settings-vpad-max: 120px;',"), '应有大视口封顶变量')
+  // metrics 函数继续引用 vpad 变量（不把数值写进 JS）
+  assert.ok(source.includes("const vpad = 'var(--dshm-settings-vpad, 24px)';"), 'settingsFrameMetrics 应引用 vpad 变量')
+})
