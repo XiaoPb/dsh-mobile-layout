@@ -245,6 +245,17 @@
     排查时别只看「按钮在不在」，要看**点开后的菜单项文本**
     （`[role="menuitem"]`）有没有「设置」。
 
+35. **右栏页签行有三个坑**：整行是 `[role="tablist"]`，里面依次是页签条、
+    一个 ~150px 宽零高的空 div（拖拽留白）、新建 / 分栏 / 退出全屏 / 收起侧栏。
+    ① 页签条 `flex: 0 1 auto` 会被压缩——单开降到 65px，多开时被压到几十像素，
+    文字截成「⌄ b」；② 那个空 div 把功能键一路推到最右；③ 关闭键同样满足
+    「top<64、≤44×44」，会被 `syncRightbarChrome` 误标成顶部功能键、撑成正方形。
+    修法：JS 打两个标（`data-dshm-tabstrip` / `data-dshm-tabfiller`），CSS 让
+    页签条 `flex: 1 1 auto` + `overflow-x: auto`、tab `flex: 0 0 auto` +
+    `min-width: 84px`，空占位 `width: 0`；打标时把 `[role="tab"]` 内的按钮排除。
+    空占位判定必须是 **div + 无 role + 无 aria-label + 无 button/a + 无文字**：
+    分栏键是个带 aria-label、文字为空的 `<span>`，只看「有没有文字」会把它归零。
+
 ---
 
 ## 4. 调试经验（MuMu 真机取证）
