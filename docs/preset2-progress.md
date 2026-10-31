@@ -297,6 +297,18 @@
 40. **子层退出的三条路都要逐层退**：返回键（`goBack` → `popAddSubLayer`）、
     系统返回（`popstate` 里先退一层，然后必须 `syncOverlayHistory()` 把历史条目
     重新压回去，否则下一次返回会直接落到页面层把整个面板收掉）、Esc 同理。
+41. **输入卡「看着窄、左右还不对称」是三个原因叠出来的**：① 官方在 card 外面
+    套了一层带 **16px 左右内边距**的外壳；② seat 是 `content-box` + calc 宽度，
+    把 padding 改小只缩内边距、不动总宽，卡片就被挤到一边；③ card 之外那层
+    裁剪容器（`data-dshm-composer-clip`）是**经典滚动条**宿主，竖向滚动条实占
+    **5px** 宽，自己还有 **2px** 右外边距。400 视口实测：左 28 / 右 35 / 下沿到
+    导航 12 —— 三个数都不等，卡片 337px。
+    修法（缺一不可）：seat 改 `width:100%` + `border-box`，左右 padding 只留
+    `--dshm-v2-gutter`；`syncComposerTight` 给 card 到 seat 之间的外壳打
+    `data-dshm-composer-tight` 把左右 padding 归零；裁剪容器 `margin-right:0`
+    并隐藏滚动条。现在 gutter = shadow-gap = **8px**：card 384px，左 8 / 右 8 /
+    下沿到导航 8。
+    **只改 `--dshm-v2-gutter` 不动 ②③，卡片会比左边距多偏 7px**（滚动条 5 + 外边距 2）。
 
 ---
 
@@ -308,7 +320,8 @@
 - `adb shell input tap` 用设备像素：`x = cssX × 1.8`，`y = 49 + cssY × 1.8`
 - 截图 612×1088 = 设备 720×1280 × 0.85（读图上的坐标要乘 720/612）
 - 五项导航中心 css x = 40 / 120 / 200 / 280 / 360，y ≈ 655（→ 设备 1228）
-- 输入行 ⊕ 现在在设备 **(78, 1128)**（去掉 40px 留白后整体下移）
+- 输入行 ⊕ 的横坐标跟着 `--dshm-v2-gutter` 走，别背数字：先探针打
+  `[data-dshm-add-chip]` 的 rect 再换算（gutter=8 时约 **(54, 1124)**）
 
 ### 部署
 
