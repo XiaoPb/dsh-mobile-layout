@@ -26,6 +26,16 @@ A Cordis plugin that turns the DSH web client into a one-handed, touch-first lay
 - **Exclusive overlays + history stack**: drawer / bottom sheet / add panel never stack; closed layer-by-layer. The add panel is also mutually exclusive with the soft keyboard in both directions (opening it first drops composer focus; tapping the input while the panel is open closes the panel first, and the keyboard rises only after the panel is gone).
 - **Accessibility & motion**: `aria-modal`, focus in/out, honors system "reduce motion".
 
+### Preset 2 (floating card)
+
+Settings → Layout offers three choices (Default / Preset 1 / Preset 2). Preset 2 is the **mobile-app form factor**: a five-item bottom nav acts as the page switcher, the composer floats, and the add panel becomes a two-level menu.
+
+- **Five-item nav**: Sessions / Workspaces / Plugins / Workbench / Settings. Sessions acts as "go home" — from Plugins/Settings/Workbench it returns to the session page; tapped again on the session page it opens the session sheet. Plugins and Settings are **pages**, not sheets, so the nav stays put and keeps switching.
+- **Workbench**: toggles the official right panel (`sidebarRight.toggleExpanded`); at phone widths the official code makes it fullscreen, and the panel leaves room for the nav.
+- **Add panel (self-drawn)**: level 1 = three attachment tiles (**image / camera / file**) plus one row per official group; tapping a group opens level 2, a list of that group's items with **title + official description**. Data and actions still come from the official nodes — it reads their options and dispatches their `mousedown`; no command semantics are duplicated.
+- **Cover-style drawers**: add / model / permission / workspace pickers slide up over the page instead of pushing the content up.
+- **Engine status band**: the host's own "engine ready" band is a native view (not in the DOM, not styleable, does not resize the viewport). `--dshm-engine-bar` (default 56px) reserves its height for panel headers; set it to `0px` if you always collapse the band first.
+
 ## Why it's good
 
 | | |

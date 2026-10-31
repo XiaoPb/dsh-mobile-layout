@@ -6,7 +6,7 @@
 [![Release](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/release.yml/badge.svg)](https://github.com/XiaoPb/dsh-mobile-layout/actions/workflows/release.yml)
 [![npm](https://img.shields.io/npm/v/@xiaopb/dsh-mobile-layout?label=npm)](https://www.npmjs.com/package/@xiaopb/dsh-mobile-layout)
 
-**DSH 手机竖屏布局插件（v0.2.10）**
+**DSH 手机竖屏布局插件（v0.3.0）**
 
 文档：[架构文档](docs/architecture.md) ｜ [技术说明](docs/technical-notes.md) ｜ [English](README.en.md)
 
@@ -26,10 +26,19 @@
 - **浮层互斥 + 历史栈**：抽屉 / 底部表 / 加号面板互斥，按层序逐层关闭；加号面板与输入法双向互斥（开面板先收键盘；面板开着点输入框先收面板、键盘等面板收完再拉起）。
 - **无障碍 & 动效降级**：`aria-modal`、焦点进出、尊重系统「减少动态效果」。
 
+### 预设 2（悬浮卡片）
+
+设置 → 布局模式里三选一（默认 / 预设 1 / 预设 2）。预设 2 是**手机应用形态**：底部五项导航当换页器，输入卡悬浮，加号面板改成一 / 二级菜单。
+
+- **五项导航**：会话 / 工作区 / 插件 / 工作台 / 设置。会话键是「回首页」——在插件 / 设置 / 工作台页按它回到会话页，已经在会话页才弹会话抽屉；插件与设置是**页面**不是弹层，导航常驻可继续换页。
+- **工作台**：直接开关官方右侧面板（`sidebarRight.toggleExpanded`），手机宽度下官方自动全屏，面板底部给导航让位。
+- **加号面板（自绘）**：一级页 = 附件三块（**图片 / 相机 / 文件**）+ 各官方分组一行；点分组进二级页，条目按「标题 + 官方描述」列成菜单。数据与动作仍来自官方节点（读它的选项、派发它的 `mousedown`），不复制命令语义。
+- **覆盖式抽屉**：加号 / 模型 / 权限 / 工作区选择都从底部盖上来，不把正文推上去。
+- **引擎状态条让位**：宿主自己的「引擎已就绪」条是原生视图（DOM 里没有、CSS 关不掉、量视口也不变），用 `--dshm-engine-bar`（默认 56px）给面板让出顶部；习惯先点箭头收起它的话改成 `0px` 即可。
+
 ## 优势
 
 | | |
-|---|---|
 | **零侵入** | 全部样式受 `data-dshm-mode="mobile"` 作用域保护，卸载或锚点失败即回退官方布局。 |
 | **单文件产物** | `lib/client.js` 即发布物，无构建、无运行时依赖。 |
 | **形态保守** | 识别三种宿主（Android 壳 / 桌面 Electron / 浏览器）；桌面端 DeepSeek Harness **永不激活**（任何窗口尺寸官方布局不变），其余形态只认手机竖屏、像素级不变。 |
