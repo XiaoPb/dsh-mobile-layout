@@ -225,6 +225,13 @@
     `findTurnDock` 的兜底判据：输入卡之后、高度 ≤ 34px、文本匹配
     `N 轮` / `N 步`。
 
+33. **抽屉别加宽**：侧栏内部区块是按 `--dshm-drawer-width`
+    （`min(86vw, 280px)`）排版的，预设 2 曾经单独放到 `min(84vw, 344px)`，
+    实测 400px 视口下容器 336px、内容仍只画到 280px，右侧多出一条 56px 空带，
+    看起来像抽屉「没画满」。预设 2 现在只覆盖圆角（24px），宽度回到与预设 1
+    完全一致；量法：`[data-dshm-sidebar]` 的 `getBoundingClientRect().width`
+    与内部所有后代的最大 `right` 之差应 ≤ 1px。
+
 ---
 
 ## 4. 调试经验（MuMu 真机取证）
