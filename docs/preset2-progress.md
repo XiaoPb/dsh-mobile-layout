@@ -2,7 +2,7 @@
 
 > 三套布局的对外名字：**原生 / 融合 / 悬浮**（原生 = DSH 官方原样；融合 = 输入区与底栏连成一条，即 v1；悬浮 = 输入卡浮起 + 五项导航，即 v2）
 >
-> 更新时间：2026-10-31 14:25 · 分支 `main` · 版本 0.3.0
+> 更新时间：2026-11-01 · 分支 `main` · 版本 0.4.0 · **状态：预设体系已结项**（三档稳定、真机验收通过，后续进入常规维护）
 > 环境：MuMu 模拟器 / DSH 1.4.67 / 视口 400×684 CSS（dpr 2）
 
 ---
@@ -66,10 +66,12 @@
 （发送键 aria-label 变化 / stop 按钮 / `[data-streaming]`）**尚未取证**，
 没有证据前不做假进度。
 
-### 2.4 文档截图
+### 2.4 文档截图：已完成（0.4.0）
 
-`docs/assets/screens/` 还是 0.1.6 的图，预设 2 的六帧线框有了
-（`docs/assets/preset2-wireframe.svg`），但没有真机截图。
+三预设整机实拍已补齐并按模式归档：`docs/assets/screens/preset-v2/`（8 张）、
+`preset-classic/`（2 张）、`preset-default/`（2 张）；README 每模式两张
+（主页 + 设置），全部页面见 `docs/preset-default.md` / `preset-classic.md` /
+`preset-v2.md`（内嵌 HTML 表格排版）。0.1.6 旧图移入 README 折叠存档。
 
 ---
 
@@ -363,7 +365,9 @@ push 后**必须核对字节数**（静默失败过）。
 
 ## 5. 下一步
 
-1. 想加「运行态进度条」先取证：发送中真机抓一次 DOM，看发送键 / stop 按钮 / 状态属性有没有可用信号。
-2. 预设 2 的真机截图补进 `docs/assets/screens/`，README 的截图段还没换。
-3. `test/mode.test.js` 可补三项导航在页面态的可见性用例（当前覆盖在 `preset.test.js`）。
-4. 选择器的「节插入」逻辑目前靠文本匹配「外观 / Appearance」；官方若改文案需要同步 `findAppearanceSection` 的正则。
+> 0.4.0 起预设体系结项（变更明细见 [CHANGELOG](../CHANGELOG.md)），余下为低优先级项：
+
+1. 「运行态进度条」先取证：发送中真机抓一次 DOM，看发送键 / stop 按钮 / 状态属性有没有可用信号；没有证据前不做假进度。
+2. `test/mode.test.js` 可补三项导航在页面态的可见性用例（当前覆盖在 `preset.test.js`）。
+3. 选择器的「节插入」逻辑目前靠文本匹配「外观 / Appearance」；官方若改文案需要同步 `findAppearanceSection` 的正则。
+4. 硬编码守卫存量 221 处（`scripts/hardcoded-baseline.json`）渐进收紧：每改一处布局样式顺手换 `clamp()/var()`，消除后 `npm run hardcode:baseline`。

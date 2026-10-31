@@ -9,10 +9,14 @@
 - **测试出口**：`module.exports.__test` 导出全部纯函数与常量（`classify`、`swipeDirection`、`drawerStartLimit`、`decideDrawerGesture`、`drawerSettle`、`scrollerConsumes`、`planAddPages`、`tintHash`、`sessionRows`、`shouldCloseSheetByDrag`、`STRINGS` 等），供 `test/*.test.js` 使用。注意 `__test` 对象出自 vm 沙箱（跨 realm），断言对象值时先逐字段取值或转本域数组，**不要直接 `deepEqual` 沙箱对象**（原型不同必挂）。
 
 ```sh
-npm run check     # node --check → 88 项单测 → verify-package 包契约自检
-npm test          # 仅单测
-npm run pack:dry  # 预览发布文件清单
+npm run check             # node --check → 129 项单测 → verify-package → 硬编码守卫
+npm test                  # 仅单测
+npm run hardcode:check    # 仅硬编码守卫（新增违规即失败）
+npm run hardcode:baseline # 消除违规后收紧 baseline
+npm run pack:dry          # 预览发布文件清单
 ```
+
+- **硬编码守卫**：`scripts/check-hardcoded.mjs` 扫描 `lib/client.js` 注入 CSS 字符串行里「布局属性（width/height/margin/padding/top…/gap/border-radius）+ 纯 px」。值含 `var()/clamp()/env()/min()/max()/%` 自动放行，0.5 / 1px 细线豁免，行上方注释 `HARDCODE-OK: 理由` 可豁免；与 `scripts/hardcoded-baseline.json`（sha1 哈希集）比对，**新增违规即失败**、消除违规提示收紧。跨机型适配问题在源头被 CI 拦截。
 
 ## 2. 关键参数与依据
 
@@ -32,6 +36,10 @@ npm run pack:dry  # 预览发布文件清单
 | 会话表高度上限 | 屏高 64%，下限 300px | 官方弹层比例（v1.4.57 视觉分支）；仍留出底部操作条与输入区 |
 | 空态 hero 居中 | 内容列顶 → 输入卡顶的中点 | 手机布局把标题栏折叠成 0 高，若拿 composer seat 顶当上边界，只有「seat 顶 → 输入卡顶」几十像素参与居中，hero 会贴底压到输入面板分界线上（0.2.11 修） |
 | 底部表下拉关闭阈值 `SHEET_DRAG_CLOSE_PX` | 96 CSS px | 约拇指一节：低于此多为误触，高于此用户已明确「不要这张表」 |
+| 原生设置悬浮窗 gutter `--dshm-settings-gutter` | `clamp(12px, 3.4vw, 20px)` | 左右留白随屏宽缩放；left/right 表达式逐字符相同 + `margin: 0 auto`，杜绝 over-constrained 下 LTR left 优先导致的偏左 |
+| 原生设置悬浮窗 vpad `--dshm-settings-vpad` | `clamp(min 24px, 10vh, max 120px)` | 上下各留约 10% 视口高；矮屏保底、高屏封顶（0.4.0 由固定 18–28px 改为比例式） |
+| 融合空态卡 gutter `--dshm-classic-gutter` | `clamp(12px, 3.4vw, 20px)` | 空态虚线输入卡左右对称留白；**margin 方案必须配 `width: calc(100% - 2×gutter)`**，否则被钉死的 `width:100%` 在 over-constrained 下吃掉 margin |
+| 悬浮卡圆角 `--dshm-v2-radius` | 20px | 虚线描边画在官方 `::after` 伪元素上，必须同步 `border-radius: inherit`，否则出现月牙缝 |
 
 ## 3. 各功能域实现要点
 
@@ -80,6 +88,8 @@ npm run pack:dry  # 预览发布文件清单
 
 `syncComposerPad` / `syncComposerFrame` / `syncComposerEdge` 把输入区压平融合底部面板（去圆角/边框/阴影、全宽同表面、1px 分界）；`syncComposerChips` 把权限 / 模型短名 chip（`permissionShort` / `modelShort`，中英文表驱动）留在输入行，「完全访问 / Full access」恒标红。
 
+`syncComposerClip` 给滚动容器打 `[data-dshm-composer-clip]`：**手机布局全预设生效**（0.4.0 起不再仅悬浮）——隐藏经典滚动条（`scrollbar-width: none` 只覆盖了 seat 子树，scrollBody 这类 seat 的父级会漏）并取消官方 `scrollbar-gutter: stable` 的 5px 沟槽，否则空态卡左 0 / 右 7 不对称。`default` 预设不进 mobile，不受影响。
+
 ### 3.6 底部表（会话表 / 插件表）的视觉与把手
 
 **这是一条有意的本地视觉分支**：会话表与插件表不再沿用自绘的「白卡片 + 16px 圆角」，而是对齐引擎 v1.4.57 官方弹层（「预览版说明」卡片）的设计语言。同步上游时这层样式可能被整体覆盖，`test/sheet.test.js` 与 Android 侧 `scripts/probes/_test_builtin_plugins.py` 都做了字符串锁，CI/探针会先报出来。
@@ -98,10 +108,22 @@ npm run pack:dry  # 预览发布文件清单
 2. 无 `[role=listbox]` 标记打不上「选择器」身份时，按搜索框 placeholder（`^(搜索|search)/i`）**语义兜底**识别（0.2.7，`cc0669f`）；
 3. `focusin` 兜底防官方异步 refocus；`pointerdown` 对已标记选择器内的输入框**一律记录**到 `pickerFocusGuard.lastTouch`（0.2.8，`9a6e443`——此前记录动作也带 placeholder 条件，缺 placeholder 属性的搜索框漏记，用户真点搜索框会被误 blur）。
 
+### 3.8 三预设与设置页接管（0.3.x–0.4.0）
+
+三层解耦：宿主 host → 手机形态 phone（`data-dshm-form`）→ 外观预设 preset（`data-dshm-preset`：default / classic / v2，持久化 `localStorage['dshm-layout-preset']`）。切换入口只有设置页「布局模式」三卡片。
+
+- **选择器 i18n（0.4.0）**：三卡片挂在官方滚动容器里、不订阅插件 state，官方切语言不重建这块 DOM——文案会停在构建时的语言。`syncLayoutPickerTexts(box)` 按 `data-value` 重刷 head 标题、各卡 title / hint / aria-label；`syncLayoutPickerState` 开头统一调用（即每次预设变化也刷新），`locale/change` 回调（`applyLocale`）补调 `syncLayoutPicker()`。
+- **设置页双形态接管**：`syncSettingsPanel` 按预设双向——融合 / 悬浮钉全屏（清原生残留内联），原生钉居中悬浮窗；`clearSettingsPanel` 按 `SETTINGS_HARDEN_KEYS` 逐节点 `removeProperty` 还原官方内联（含 `max-width`），否则原生 `max-width:352px` 泄漏会卡窄全屏面板。
+- **原生悬浮窗几何**：`settingsFrameMetrics()` 纯函数（有契约单测：left === right 逐字符相同、含 vpad/safe-x 变量、纵向不强制相等）产出四边 + `max-width: min(480px, 100vw - 2*gutter - 2*safe-x)` + `margin: 0 auto`。官方 `max-width:352px` + `left:12/right:12` 是 over-constrained，LTR left 优先 → 面板偏左，这就是「悬浮窗偏左」的根因。
+- **切原生不再关闭设置页**：`clearSettingsPanel` 消费历史前检查 `state.settingsOpen` / `officialSettingsDialogAlive()`；`setMode(default)` 只在设置页与官方弹窗都不存活时才 `history.back()`——否则 popstate 会让官方卸载设置弹窗（探针实测 BACK→POP→OVL-REMOVED 仅 23ms）。
+- **单实例守卫**：宿主在插件页禁用插件**不调 dispose**、启用**不重新 apply**；旧实例晚 dispose 会清空订阅者、置空 `runtime.setPreset`。`apply` 开头 `activeDispose` 同步清场、末尾登记，`dispose` 里 `activeDispose === dispose` 才自清。
+- **插件自带配置页兼容（0.4.0）**：dsh-pet 桌宠配置 / dshmarket 插件市场实测。`isSettingsContentBlock` / `hasSettingsContent` 按几何 + 内容量判定（不再强依赖表单控件）；`tagSettingsCards` 限定外观小节；`findSettingsScroll` 兜底排除 nav / brand。
+
 ## 4. i18n
 
 - `STRINGS` 表驱动，`t(key)` 取词；语言跟随官方 `locale` 服务（监听 `locale/change`），服务缺席退回 `<html lang>` / `navigator.language`（`detectLang`）。
-- 文案集中在表里新增，不在逻辑里散落；设置页页签、底部表、加号面板标签全部走表。
+- 文案集中在表里新增，不在逻辑里散落；设置页页签、底部表、加号面板标签、布局模式三卡片全部走表。
+- **挂在官方滚动容器里的自绘节点（布局模式选择器）不订阅 state**，语言切换后必须显式重刷文案（`syncLayoutPickerTexts`，见 §3.8）——这类「官方不重渲染就不更新」的节点是 i18n 漏网重灾区。
 
 ## 5. 状态与浮层互斥
 
@@ -116,23 +138,30 @@ npm run pack:dry  # 预览发布文件清单
 ### 6.1 adb 部署
 
 ```sh
-ADB="D:/Program Files/Netease/MuMu Player 12/shell/adb.exe"   # 含物理设备支持
-# K70：插件路径与模拟器不同，注意 profiles/web/node_modules
-MSYS_NO_PATHCONV=1 "$ADB" -s <serial> exec-in run-as app.dsh.mobile sh -c \
-  'cat > files/dsh-home/profiles/web/node_modules/@xiaopb/dsh-mobile-layout/lib/client.js' \
-  < lib/client.js
-# md5 双端校验 → force-stop → monkey 拉起
+ADB="D:/Apps/QtScrcpy/adb.exe"   # 模拟器 + 物理设备都可用
+export MSYS_NO_PATHCONV=1        # Git Bash 下防止路径改写
+SERIAL=127.0.0.1:7555            # MuMu；第二台 127.0.0.1:16576；K70 用 USB serial
+DST=/data/data/app.dsh.mobile/files/dsh-home/profiles/web/node_modules/@xiaopb/dsh-mobile-layout/lib/client.js
+
+"$ADB" -s $SERIAL push lib/client.js /data/local/tmp/client.js
+"$ADB" -s $SERIAL shell "su -c 'cp /data/local/tmp/client.js $DST'"
+"$ADB" -s $SERIAL shell am force-stop app.dsh.mobile
+"$ADB" -s $SERIAL shell "monkey -p app.dsh.mobile -c android.intent.category.LAUNCHER 1"
 ```
 
-- K70：物理 1440×3200 @560dpi，CSS 视口 ≈ 411×917（÷3.5）；MuMu：720×1280，CSS 400×711。
+- K70：物理 1440×3200 @560dpi，CSS 视口 ≈ 411×917（÷3.5）；MuMu：720×1280，CSS 400×684。
+- 无 root 路径：`exec-in run-as app.dsh.mobile sh -c 'cat > files/dsh-home/…/client.js' < lib/client.js`。
+- 部署后 `md5sum` 双端校验；**临时探针必须先从本地 `lib/client.js` 移除再 `npm run check`**，防止探针代码混进提交。
 - **几何结论以 DOM 探针为准，不要拿截图像素换算**：截图是物理像素，加状态栏偏移，误差足以误导判定。
 
 ### 6.2 DOM 探针法（定位样式/判定 bug 的标准流程）
 
-把只读 IIFE 探针**追加**到设备端 `client.js` 末尾（测完推回干净版），复刻可疑判定逻辑并把中间量 `console.log('[P2]' + JSON.stringify(...))`，`adb logcat -d` 取证：
+把只读 IIFE 探针插到 `apply(ctx)` 开头（须 `typeof window !== 'undefined'` 守卫，且用全局 `document` / `window`——apply 内局部 `doc`/`win` 在模块顶层不可见），复刻可疑判定逻辑，结果渲染成 fixed 黄色浮层（比 logcat 直观），测完按 `/* TEMP-PROBE: */ … /* TEMP-PROBE-END */` 标记整块删除：
 
-- 探针挂 `scroll`（capture, 捕获阶段 + 350ms 合帧）可实时跟踪几何变化；
-- 探针法的经典战例：0.1.9 前的「滚回顶部不回显」bug（绝对阈值把静止态误判成已滚动）、0.1.15 的抽屉手势失效（第三方页面整页横滚 + 事件被吃，探针证明冒泡监听根本收不到 touchmove）都靠它收敛根因。
+- 探针挂 `scroll`（capture + 350ms 合帧）可实时跟踪几何变化；
+- **浮层行过长会被屏幕截断**——一行一个字段组，宁可多行；
+- **真机进不去设置页时切预设的捷径**：探针里 `localStorage.setItem('dshm-layout-preset', 'v2') + location.reload()`，走正规初始化路径（比手改 DOM 可靠）；
+- 探针法的经典战例：0.1.9 前的「滚回顶部不回显」bug、0.1.15 的抽屉手势失效（第三方页面整页横滚 + 事件被吃，探针证明冒泡监听根本收不到 touchmove）、0.4.0 的融合虚框 7px 右偏（逐层打印 L/Rgap/padding/scrollbar-gutter 收敛到 scrollBody）都靠它定根因。
 
 ### 6.3 UI 自动化要点
 

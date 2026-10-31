@@ -60,36 +60,49 @@ dsh-mobile-layout 是一个 Cordis 插件，把 DSH Web 客户端在**手机竖�
 
 ## 4. 分层结构
 
-`lib/client.js` 约 5800 行，自上而下分五层。依赖方向单向向下：
+`lib/client.js` 约 10000 行，自上而下分六层。依赖方向单向向下：
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│ ⑤ 组件层（React）                                     │
+│ ⑥ 组件层（React）                                     │
 │    BottomBar · Sheet · AddPager · OverlayLayer       │
 │    （遮罩 / Esc 出口；抽屉手势不在此层，见下）           │
 ├──────────────────────────────────────────────────────┤
-│ ④ 功能域层                                            │
+│ ⑤ 功能域层                                            │
 │    抽屉 / 底部表 / 加号面板 / 设置页手机化 / 会话表      │
-│    （openSheet · tagComposerMenus · tagSettings ·    │
-│      bindDrawerGesture · sessionRows …）              │
+│    设置页接管（全屏 / 悬浮窗双形态）/ 布局模式选择器     │
+│    （openSheet · tagSettings · syncSettingsPanel ·   │
+│      syncLayoutPicker(Texts/State) · bindDrawer…）   │
+├──────────────────────────────────────────────────────┤
+│ ④ 预设层（host → phone → preset 三层解耦）             │
+│    resolvePreset / setPreset / currentPreset         │
+│    syncComposerClip · settingsFrameMetrics ·         │
+│    syncLayoutPicker —— 纯函数决策 + 根属性驱动样式     │
 ├──────────────────────────────────────────────────────┤
 │ ③ 同步引擎层                                          │
 │    锚点标记 applyAnchors / clearAnchors               │
 │    MutationObserver 驱动的 sync* 家族                 │
-│    （syncComposerChips · syncSettingsPanel ·         │
-│      syncAddPaging …）                                │
+│    （syncComposerChips · syncAddPaging …）            │
 ├──────────────────────────────────────────────────────┤
 │ ② 纯函数层（全部有单测，经 __test 出口导出）            │
 │    classify · swipeDirection · drawerStartLimit ·    │
 │    decideDrawerGesture · drawerSettle · scrollerConsumes │
 │    nextTabIndex · planAddPages · tintHash ·          │
-│    sessionRows …                                      │
+│    settingsFrameMetrics · sessionRows …               │
 ├──────────────────────────────────────────────────────┤
 │ ① 基础层                                              │
-│    宿主/模式判定 · i18n(STRINGS/t) · 布局状态 store    │
-│    （getState/setState/subscribe）· injectStyle       │
+│    宿主/模式判定 · i18n(STRINGS/t/syncLayoutPickerTexts) │
+│    布局状态 store（getState/setState/subscribe）       │
+│    · injectStyle · activeDispose 单实例守卫            │
 └──────────────────────────────────────────────────────┘
 ```
+
+### 4.0 预设体系（host → phone → preset）
+
+- **host**（Android 壳 / 桌面 / 浏览器）→ **phone**（`data-dshm-form`，是否手机布局）→ **preset**（`data-dshm-preset`：`default` 原生 / `classic` 融合 / `v2` 悬浮），三层各自独立、根属性驱动样式。
+- 预设持久化在 `localStorage['dshm-layout-preset']`；切换入口只有设置页「布局模式」三卡片（挂官方滚动容器，不订阅 state，因此文案刷新由 `syncLayoutPickerTexts` 显式补刀）。
+- `apply(ctx)` 开头有 **`activeDispose` 单实例守卫**：宿主「禁用插件不调 dispose、启用不重新 apply」时，旧实例晚于新实例启动会把订阅者清空、`runtime.setPreset` 置空——守卫保证任一时刻只有一个活实例。
+- `default` 预设不进入手机布局（`mode=default` 时样式整体不生效），只接管官方设置弹窗（悬浮窗形态）。
 
 ### 4.1 锚点标记层（插件与官方 DOM 的唯一接触面）
 
@@ -119,47 +132,55 @@ MutationObserver 在 mobile 模式下全局监听，回调里按需分发到各 
 | 底部表 | `openSheet` / `Sheet` | 会话表（工作区分组 + 吸顶头）/ 插件表；最多占屏高 64%，顶部把手可下拉关闭 |
 | 加号面板 | `openOfficialAddMenu` + `tagComposerMenus` | 程序化点击官方 ⊕，对面板 surface 打标 + 分页 + 配色；与软键盘互斥 |
 | 设置页手机化 | `tagSettings` | 官方设置对话框改全屏：品牌行 + 可横滑页签 + 返回键；自带页签滑动手势；仅最左页签右滑跟手退出（`settingsPagerCanConsume` 按翻页边界让路），开合补滑动过渡 |
-| Composer 融合 | `syncComposerPad` / `syncComposerFrame` | 输入区去边框融合底部面板；权限 / 模型 chip 留输入行 |
+| 设置页接管（预设感知） | `syncSettingsPanel` / `settingsFrameMetrics` | 双形态：融合 / 悬浮钉全屏、原生钉居中悬浮窗（10vh 留白、等宽 gutter、安全区叠加）；清场时逐键还原官方内联样式 |
+| 布局模式选择器 | `syncLayoutPicker` / `syncLayoutPickerState` / `syncLayoutPickerTexts` | 三卡片挂官方滚动容器、不订阅 state；选中态同步顺带刷文案，locale/change 后显式补刀（i18n 实时刷新） |
+| Composer 融合 | `syncComposerPad` / `syncComposerFrame` / `syncComposerClip` | 输入区去边框融合底部面板；权限 / 模型 chip 留输入行；滚动容器全预设收敛（隐藏滚动条 + 取消 gutter 沟槽） |
 
 ## 6. 模块地图（函数分组）
 
 | 分组 | 代表函数 |
 |---|---|
 | 宿主 / 模式 | `detectHost` · `classify` · `resolveMode` · `measure` |
-| i18n | `STRINGS` · `t` · `detectLang` · `setLang` |
+| 预设 | `resolvePreset` · `setPreset` · `currentPreset` · `syncComposerClip` · `settingsFrameMetrics` |
+| i18n | `STRINGS` · `t` · `detectLang` · `setLang` · `syncLayoutPickerTexts` |
 | 状态 store | `getState` · `setState` · `subscribe` · `useLayoutState` |
 | 锚点 / 样式 | `applyAnchors` · `clearAnchors` · `injectStyle` · `frameElement` |
 | 抽屉手势 | `bindDrawerGesture` · `decideDrawerGesture` · `drawerSettle` · `scrollerConsumes` · `drawerStartLimit` |
 | Composer | `syncComposerChips` · `syncComposerPad` · `syncComposerFrame` · `syncHero` |
 | 加号面板 | `collectAddOptions` · `planAddPages` · `syncAddPaging` · `planAddTints` · `tintHash` |
-| 设置页 | `tagSettings` · `settingsTabItems` · `switchSettingsTab` · `ensureSettingsBack` · `centerSettingsTab` |
+| 设置页 | `tagSettings` · `settingsTabItems` · `switchSettingsTab` · `ensureSettingsBack` · `centerSettingsTab` · `syncSettingsPanel` · `clearSettingsPanel` · `officialSettingsDialogAlive` |
+| 布局选择器 | `ensureLayoutPicker` · `syncLayoutPicker` · `syncLayoutPickerState` · `syncLayoutPickerTexts` |
 | 会话表 | `sessionRows` · `groupSessionsByWorkspace` · `workspaceLabelFor` · `formatRelativeTime` |
 | 浮层 / 手势 | `openSheet` · `closeSheet` · `openOfficialAddMenu` · `closeOfficialAddMenu` · `syncOverlayHistory` · `requestDrawer` |
 | 组件 | `BottomBar` · `Sheet` · `AddPager` · `OverlayLayer` |
-| 生命周期 | `apply` · `dispose` |
+| 生命周期 | `apply` · `dispose` · `activeDispose`（单实例守卫） |
 
 ## 7. 生命周期
 
 ```
 apply(ctx)
+  ├─ activeDispose 守卫：上一个实例活着就先同步清场
   ├─ injectStyle（样式只注入一次）
   ├─ resolveAnchors（打锚点，失败不阻断）
-  ├─ evaluateNow（宿主/模式判定，写 data-dshm-mode）
+  ├─ evaluateNow（宿主/模式判定，写 data-dshm-mode/form/preset）
   ├─ MutationObserver / resize / scroll / keyboard 监听
   ├─ ctx.inject(['slots','layout']) → 注册三个槽位 + 订阅 panelInfo
   ├─ ctx.inject(['sessions','uiWorkspace'])
-  └─ ctx.inject(['locale'])
+  ├─ ctx.inject(['locale']) → locale/change 后 syncLayoutPicker 刷新文案
+  └─ apply 末尾登记 activeDispose = dispose
 
 dispose()
   ├─ 移除全部监听与 observer
-  ├─ clearAnchors + clearPageHead（还原官方 DOM）
+  ├─ clearAnchors + clearPageHead（还原官方 DOM，含内联样式逐键还原）
   ├─ 摘除注入样式
+  ├─ activeDispose === dispose 时自清引用
   └─ 官方槽位由 cordis 随插件卸载回收
 ```
 
 ## 8. 测试与质量边界
 
-- **纯函数 + 源码契约单测**（88 项）：所有几何决策、分页、配色、状态机判定都抽成纯函数，经 `module.exports.__test` 出口在 Node 单测中覆盖（vm 沙箱隔离，测试不碰 DOM）。
+- **纯函数 + 源码契约单测**（129 项）：所有几何决策、分页、配色、状态机判定都抽成纯函数，经 `module.exports.__test` 出口在 Node 单测中覆盖（vm 沙箱隔离，测试不碰 DOM）。
 - **包契约自检**：`verify-package` 校验 bundle 内 `VERSION` 与 package.json 一致、发布文件清单完整。
+- **硬编码守卫**：`check-hardcoded.mjs` 扫描注入 CSS 的「布局属性 + 纯 px」，新增违规 CI 失败；自适应表达式（`var()/clamp()/env()/%`）自动放行，存量 221 处进 baseline 渐进收紧。
 - **真机验收**：MuMu 模拟器（720×1280）+ Redmi K70 真机两档；验证矩阵与 adb 部署方法见《技术说明》第 6 节。
 - **明确不做的**：不改官方 DOM 结构（只打属性）、不拦截系统边缘手势（WebView 无权限）、桌面端不激活。

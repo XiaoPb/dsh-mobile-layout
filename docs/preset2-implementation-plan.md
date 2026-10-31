@@ -1,7 +1,7 @@
 # 预设 2：悬浮卡片布局设计与实现方案
 
-> 状态：方案稿（第三版），未修改运行时代码。  
-> 基线：`@xiaopb/dsh-mobile-layout@0.2.11`，`lib/client.js` 单文件发布物。  
+> 状态：**已落地结项（0.4.0）**——本方案对应的能力已全部实现并通过真机验收，落地结果与后续变更见 [preset2-progress](preset2-progress.md) 与 [CHANGELOG](../CHANGELOG.md)。  
+> 基线：方案撰写于 `@xiaopb/dsh-mobile-layout@0.2.11`，`lib/client.js` 单文件发布物。  
 > 命名：设置项共三档 —— **原生**（`default`）/ **融合**（`classic`）/ **悬浮**（`v2`）。入口只有一处：设置 → 通用设置 → 外观下面的「布局模式」卡片。
 
 ## 0. 版本说明与已定决策
