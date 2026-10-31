@@ -85,9 +85,9 @@ Floating is the **mobile-app form factor**: a five-item bottom nav acts as the p
   </tr>
 </table>
 
----
+Archived screenshots of the early release (v0.1.6, single-column v1 layout) live in a separate page: [docs/archive-v0.1.6.md](docs/archive-v0.1.6.md).
 
-## Install
+---
 
 ```sh
 dsh plugin --profile web add @xiaopb/dsh-mobile-layout

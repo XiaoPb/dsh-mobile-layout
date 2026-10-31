@@ -102,22 +102,7 @@
   </tr>
 </table>
 
-<details>
-<summary>早期版本（v0.1.6）截图存档</summary>
-
-| 空会话（hero 居中） | 会话（分界线回到输入座） |
-|---|---|
-| <img src="docs/assets/screens/empty-session.png" width="260"> | <img src="docs/assets/screens/conversation.png" width="260"> |
-
-| 抽屉 | 加号面板（两页） |
-|---|---|
-| <img src="docs/assets/screens/drawer.png" width="260"> | <img src="docs/assets/screens/sheet-add.png" width="260"> |
-
-| 设置页 · 账号 | 设置页 · 通用 |
-|---|---|
-| <img src="docs/assets/screens/settings-account.png" width="260"> | <img src="docs/assets/screens/settings-general.png" width="260"> |
-
-</details>
+早期版本（v0.1.6，v1 单栏布局）的截图存档已移到独立文档：[docs/archive-v0.1.6.md](docs/archive-v0.1.6.md)。
 
 ---
 
