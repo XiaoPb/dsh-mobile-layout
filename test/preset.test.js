@@ -39,6 +39,8 @@ const {
   effectiveMode,
   navSlots,
   addPanelGroups,
+  optionCopy,
+  addMenuModel,
   attachAliasOf,
   composerState,
   PRESET_DEFAULT,
@@ -262,4 +264,79 @@ test('composerState：非法草稿长度按空处理', () => {
   assert.equal(composerState(undefined, false), 'collapsed')
   assert.equal(composerState(NaN, false), 'collapsed')
   assert.equal(composerState('abc', false), 'collapsed')
+})
+
+// ---- 加号面板「一 / 二级菜单」模型 ----
+
+test('optionCopy：名称 / 别名 / 描述三段按官方结构拆开', () => {
+  const copy = optionCopy(['目标', 'goal', '设置或查看长期任务目标'])
+  assert.equal(copy.label, '目标')
+  assert.equal(copy.alias, 'goal')
+  assert.equal(copy.desc, '设置或查看长期任务目标')
+})
+
+test('optionCopy：没有描述的项（文件）只留名称与别名', () => {
+  const copy = optionCopy(['文件', 'file'])
+  assert.equal(copy.label, '文件')
+  assert.equal(copy.alias, 'file')
+  assert.equal(copy.desc, '')
+})
+
+test('optionCopy：没有别名时，中文第二段当描述而不是别名', () => {
+  const copy = optionCopy(['目标', '设置长期目标'])
+  assert.equal(copy.alias, '')
+  assert.equal(copy.desc, '设置长期目标')
+})
+
+test('optionCopy：空输入与空段落都安全', () => {
+  // 对象来自 vm 沙箱，另一 realm 的原型与本地不同，逐字段断言而不是 deepEqual。
+  for (const input of [[], null, undefined]) {
+    const copy = optionCopy(input)
+    assert.equal(copy.label, '')
+    assert.equal(copy.alias, '')
+    assert.equal(copy.desc, '')
+  }
+  assert.equal(optionCopy(['', '  ', '目标']).label, '目标')
+})
+
+test('addMenuModel：附件抽出、其余按官方组名保序成行', () => {
+  const model = addMenuModel([
+    { key: 'alias:file', group: '添加', label: '文件', alias: 'file', desc: '' },
+    { key: 'alias:goal', group: '添加', label: '目标', alias: 'goal', desc: '设置目标' },
+    { key: 'alias:plan', group: '添加', label: '计划', alias: 'plan', desc: '计划模式' },
+    { key: 'alias:model', group: '指令', label: '模型', alias: 'model', desc: '选择模型' },
+  ])
+  assert.equal(model.attachments.length, 1)
+  assert.equal(model.attachments[0].label, '文件')
+  assert.deepEqual(
+    model.groups.map((g) => g.name).join('|'),
+    '添加|指令',
+  )
+  assert.equal(model.groups[0].items.map((i) => i.label).join('|'), '目标|计划')
+  assert.equal(model.groups[0].items[0].desc, '设置目标')
+})
+
+test('addMenuModel：官方组被附件摘空时整行不产出', () => {
+  const model = addMenuModel([
+    { key: 'alias:file', group: '附件', label: '文件', alias: 'file' },
+    { key: 'alias:goal', group: '添加', label: '目标', alias: 'goal' },
+  ])
+  assert.equal(model.groups.length, 1)
+  assert.equal(model.groups[0].name, '添加')
+})
+
+test('addMenuModel：缺 key 或 label 的脏项直接丢弃', () => {
+  const model = addMenuModel([
+    { key: '', group: '添加', label: '空键' },
+    { key: 'alias:x', group: '添加', label: '' },
+    { key: 'alias:goal', group: '添加', label: '目标' },
+  ])
+  assert.equal(model.groups[0].items.length, 1)
+  assert.equal(model.groups[0].items[0].label, '目标')
+})
+
+test('addMenuModel：只有附件时 groups 为空，一级页仍可渲染', () => {
+  const model = addMenuModel([{ key: 'alias:file', group: '添加', label: '文件', alias: 'file' }])
+  assert.equal(model.attachments.length, 1)
+  assert.equal(model.groups.length, 0)
 })
