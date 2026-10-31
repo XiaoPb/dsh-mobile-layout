@@ -26,9 +26,11 @@ A Cordis plugin that turns the DSH web client into a one-handed, touch-first lay
 - **Exclusive overlays + history stack**: drawer / bottom sheet / add panel never stack; closed layer-by-layer. The add panel is also mutually exclusive with the soft keyboard in both directions (opening it first drops composer focus; tapping the input while the panel is open closes the panel first, and the keyboard rises only after the panel is gone).
 - **Accessibility & motion**: `aria-modal`, focus in/out, honors system "reduce motion".
 
-### Preset 2 (floating card)
+### Floating layout (v2)
 
-Settings → Layout offers three choices (Default / Preset 1 / Preset 2). Preset 2 is the **mobile-app form factor**: a five-item bottom nav acts as the page switcher, the composer floats, and the add panel becomes a two-level menu.
+The three layouts are **Native / Merged / Floating**: Native is DSH untouched; Merged joins the composer and the bottom bar into one block (v1); Floating lifts the composer card and adds a five-item nav (v2, this section). There is exactly one place to switch: **Settings → General → Layout mode, right under Appearance**, offering three cards (Native / Merged / Floating). Other tabs (Models / Built-in plugins) do not show it.
+
+Floating is the **mobile-app form factor**: a five-item bottom nav acts as the page switcher, the composer floats, and the add panel becomes a two-level menu.
 
 - **Five-item nav**: Sessions / Automations / Plugins / Workbench / Settings, using DSH's own icon set; the current page is tinted with the official blue (`--dsw-alias-state-business-primary`). Sessions acts as "go home" — from other pages it returns to the session page; tapped again on the session page it opens the session sheet. Plugins / Automations / Settings are **pages**, not sheets, so the nav stays put (tapping the active one returns to the session).
 - **Workbench**: toggles the official right panel (`sidebarRight.toggleExpanded`); at phone widths the official code makes it fullscreen and the panel leaves room for the nav; **swipe sideways to dismiss**, and from a plugin/automation page it closes that page first.
