@@ -14,7 +14,9 @@
   ],
   "scripts": {
     "test": "node --test --test-force-exit test/*.test.js",
-    "check": "node --check lib/client.js && npm test && node scripts/verify-package.mjs",
+    "check": "node --check lib/client.js && npm test && node scripts/verify-package.mjs && node scripts/check-hardcoded.mjs",
+    "hardcode:check": "node scripts/check-hardcoded.mjs",
+    "hardcode:baseline": "node scripts/check-hardcoded.mjs --update",
     "pack:dry": "npm pack --dry-run",
     "prepack": "node scripts/verify-package.mjs"
   },
