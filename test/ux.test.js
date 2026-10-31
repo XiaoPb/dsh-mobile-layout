@@ -36,6 +36,7 @@ const {
   slotOf,
   planAddPages,
   isSettingsDialog,
+  isSettingsContentBlock,
   workspaceTitleMap,
   workspaceNameFor,
   workspaceLabelFor,
@@ -164,6 +165,23 @@ test('isSettingsDialog：必须是 aria-modal dialog 且导航按钮 ≥3', () =
   // 不是 dialog（主界面误判防护）
   assert.equal(isSettingsDialog({ role: null, ariaModal: null, navButtons: 6 }), false)
   assert.equal(isSettingsDialog(null), false)
+})
+
+test('isSettingsContentBlock：插件配置页（无表单控件）也要能算内容', () => {
+  // 插件页常见形态：只有文本 + 按钮，没有 input / switch / combobox
+  assert.equal(isSettingsContentBlock({ width: 640, height: 420, nodes: 12, text: '我的插件配置' }), true)
+  // 异步加载中的骨架屏：没有文本，但有节点
+  assert.equal(isSettingsContentBlock({ width: 640, height: 420, nodes: 8, text: '' }), true)
+  // 空壳弹窗：内容区已卸载，既没文本也没子节点
+  assert.equal(isSettingsContentBlock({ width: 640, height: 420, nodes: 0, text: '   ' }), false)
+  // 页签行（56px）/ 工具行（72px）不能算内容
+  assert.equal(isSettingsContentBlock({ width: 640, height: 56, nodes: 6, text: '通用设置模型内置插件' }), false)
+  assert.equal(isSettingsContentBlock({ width: 640, height: 72, nodes: 2, text: '打开配置文件' }), false)
+  // 未布局 / 非法输入
+  assert.equal(isSettingsContentBlock({ width: 0, height: 0, nodes: 0, text: '' }), false)
+  assert.equal(isSettingsContentBlock({}), false)
+  assert.equal(isSettingsContentBlock(null), false)
+  assert.equal(isSettingsContentBlock({ width: 'x', height: 'y', nodes: 9, text: '文本' }), false)
 })
 
 test('normalizeWorkspacePath：统一分隔符并去掉尾斜杠', () => {
