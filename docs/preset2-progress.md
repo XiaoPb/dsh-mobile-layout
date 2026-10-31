@@ -309,6 +309,22 @@
     并隐藏滚动条。现在 gutter = shadow-gap = **8px**：card 384px，左 8 / 右 8 /
     下沿到导航 8。
     **只改 `--dshm-v2-gutter` 不动 ②③，卡片会比左边距多偏 7px**（滚动条 5 + 外边距 2）。
+42. **原生预设的设置页只重排、不全屏（用户两次纠偏后的定案）**：官方设置弹窗
+    在手机上是居中悬浮窗（400 视口实测 12,24 376×636），原生预设下保持这个
+    形态，只把头部排成两行——第一行 =「设置」标题 + 绝对定位叠右侧的
+    「打开配置文件 / ✕」（与标题垂直居中），第二行 = 页签（`flex-basis:100%`
+    强制换行 + `overflow-x:auto`，7 个页签不滚就永远点不到第 5 个起）。原生
+    **不插返回键、不建品牌行**（悬浮窗自带 ✕；系统返回键由新增的历史条目
+    接管，否则按返回直接退出应用——官方设置弹层不响应返回键）。
+    实现要点：① 基础设置规则仍挂 `mode=mobile`（v1/v2 完全不动），原生用
+    `form=phone][data-dshm-preset=default` 独立覆盖块；② 工具行是 React 管的
+    节点，**不能搬进 nav**（会炸 reconciliation），用 `position:absolute` 叠放，
+    `content` 强制 `static` 让弹窗成为 containing block；③ `syncSettingsPanel`
+    的门控从「mode=mobile」放宽成「state.phone」，observer 里把它和
+    `syncOverlayHistory` 挪到「非手机」提前返回**之前**；④ 开/合动画只在
+    mode=mobile 跑，原生保持官方瞬时出现；⑤ 原生预设下基础规则不生效，
+    返回键等官方按钮样式会原样露出（实测 2px 边框 46×32）——不插返回键正好
+    绕开；标题要显式复位官方的位移（`transform/translate: none`）。
 
 ---
 
