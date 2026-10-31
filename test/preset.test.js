@@ -129,15 +129,15 @@ test('effectiveMode：从 default 预设切到 v2 能重新进入 mobile（回�
 })
 
 test('navSlots：能力全开时是五项且顺序固定', () => {
-  const slots = navSlots({ sessions: true, workspaces: true, plugins: true, rightbar: true, settings: true })
-  assert.deepEqual([...slots], ['sessions', 'workspaces', 'plugins', 'workbench', 'settings'])
+  const slots = navSlots({ sessions: true, automation: true, plugins: true, rightbar: true, settings: true })
+  assert.deepEqual([...slots], ['sessions', 'automation', 'plugins', 'workbench', 'settings'])
   assert.deepEqual([...slots], [...NAV_KEYS])
 })
 
 test('navSlots：工作台不可达时降为四项，且不留空位', () => {
   const slots = navSlots({ rightbar: false })
   assert.equal(slots.length, 4)
-  assert.deepEqual([...slots], ['sessions', 'workspaces', 'plugins', 'settings'])
+  assert.deepEqual([...slots], ['sessions', 'automation', 'plugins', 'settings'])
   assert.ok(!slots.includes('workbench'))
   assert.ok(slots.every(Boolean))
 })
@@ -153,7 +153,7 @@ test('navSlots：任何组合都不产生重复键', () => {
     { rightbar: false },
     { plugins: false },
     { rightbar: false, plugins: false, settings: false },
-    { sessions: false, workspaces: false },
+    { sessions: false, automation: false },
   ]
   for (const caps of combos) {
     const slots = navSlots(caps)

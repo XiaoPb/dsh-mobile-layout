@@ -30,10 +30,11 @@ A Cordis plugin that turns the DSH web client into a one-handed, touch-first lay
 
 Settings → Layout offers three choices (Default / Preset 1 / Preset 2). Preset 2 is the **mobile-app form factor**: a five-item bottom nav acts as the page switcher, the composer floats, and the add panel becomes a two-level menu.
 
-- **Five-item nav**: Sessions / Workspaces / Plugins / Workbench / Settings. Sessions acts as "go home" — from Plugins/Settings/Workbench it returns to the session page; tapped again on the session page it opens the session sheet. Plugins and Settings are **pages**, not sheets, so the nav stays put and keeps switching.
-- **Workbench**: toggles the official right panel (`sidebarRight.toggleExpanded`); at phone widths the official code makes it fullscreen, and the panel leaves room for the nav.
+- **Five-item nav**: Sessions / Automations / Plugins / Workbench / Settings, using DSH's own icon set; the current page is tinted with the official blue (`--dsw-alias-state-business-primary`). Sessions acts as "go home" — from other pages it returns to the session page; tapped again on the session page it opens the session sheet. Plugins / Automations / Settings are **pages**, not sheets, so the nav stays put (tapping the active one returns to the session).
+- **Workbench**: toggles the official right panel (`sidebarRight.toggleExpanded`); at phone widths the official code makes it fullscreen and the panel leaves room for the nav; **swipe sideways to dismiss**, and from a plugin/automation page it closes that page first.
 - **Add panel (self-drawn)**: level 1 = three attachment tiles (**image / camera / file**) plus one row per official group; tapping a group opens level 2, a list of that group's items with **title + official description**. Data and actions still come from the official nodes — it reads their options and dispatches their `mousedown`; no command semantics are duplicated.
-- **Cover-style drawers**: add / model / permission / workspace pickers slide up over the page instead of pushing the content up.
+- **Cover-style drawers**: add / model / permission / workspace pickers slide up over the page instead of pushing content up; the session sheet is a fixed 55% of the viewport, leaving blank space when there are few rows.
+- **Transparent bottom bar**: no fill and no divider, so the composer's soft shadow can spill into the nav row instead of being cut off.
 - **Engine status band**: the host's own "engine ready" band is a native view (not in the DOM, not styleable, does not resize the viewport). `--dshm-engine-bar` (default 56px) reserves its height for panel headers; set it to `0px` if you always collapse the band first.
 
 ## Why it's good

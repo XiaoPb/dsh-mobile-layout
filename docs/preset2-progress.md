@@ -1,6 +1,6 @@
 # 预设 2（悬浮卡片 + 五项导航）进度与交接
 
-> 更新时间：2026-10-31 13:30 · 分支 `main` · 版本 0.3.0
+> 更新时间：2026-10-31 14:10 · 分支 `main` · 版本 0.3.0
 > 环境：MuMu 模拟器 / DSH 1.4.67 / 视口 400×684 CSS（dpr 2）
 
 ---
@@ -21,7 +21,8 @@
 | `546fd31` | 清掉抽屉手势里 24 行 TEMP-DEBUG 日志 |
 | `20cfa45` | 交接文档 |
 | `fa6af34` | **加号面板改自绘一 / 二级菜单**：附件拆图片 / 相机 / 文件，分组进二级页 |
-| 本轮 | 引擎状态条让位改为 `--dshm-engine-bar` 变量；README / 版本 0.3.0 |
+| `18d7c57` | 引擎状态条让位改为 `--dshm-engine-bar` 变量；README / 版本 0.3.0 |
+| 本轮 | 第二键「工作区」→「**自动化任务**」；底栏换 DSH 官方图标 + 官方蓝高亮；底栏透明；会话抽屉固定 55%；工作台横滑退出；面板页点工作台先收页；打开设置时隐掉中间菜单 |
 
 ### 已验证行为（MuMu 实测）
 
@@ -34,6 +35,10 @@
   - 指令 · 模型 → 打开官方模型选择器；添加 · 目标 → `/目标` 写入输入框
   - 返回键 / Esc / 遮罩点击都能收起，且不会退出应用
 - 输入卡下沿 = 导航上沿；底部弹层覆盖式、不推正文
+- 第二键进官方「自动化任务」页（panelId = `schedules`），当前页高亮为官方蓝；再点一次回会话
+- 工作台：左滑 / 右滑都能退出（页签条与横滚容器让路）；从插件 / 自动化页点它先收页面再打开
+- 会话抽屉固定 55% 屏高，条目少时底部留白；底栏透明，输入卡阴影不被切断
+- 打开设置时中间那层「更多操作 / 账号」菜单不可见（`data-dshm-opening-settings`）
 - `npm test` 123 项全过；`verify-package` ALL PASS
 
 ---
@@ -127,6 +132,35 @@
 
 15. **vm 沙箱里 `assert.deepEqual` 会因跨 realm 原型不同而失败**
     单测比较纯函数返回的对象时逐字段断言。
+
+16. **右栏 store 会「假展开」**：`sidebarRight.isExpanded()` 读的是持久化偏好，
+    重启后可能仍是 true，而面板其实没挂载 / 还是 `visibility:hidden`。
+    只看服务就会把「没打开」判成「已打开」，第一下点击变成「关掉一个不存在的
+    面板」= 没反应。**有 `[data-sidebar-right-panel]` 时以 `data-sidebar-right-open`
+    为准**，服务只作兜底；两边不一致就先拨回一致再 toggle。
+
+17. **面板页里右栏不渲染**：插件（`plugins`）/ 自动化任务（`schedules`）页盖住
+    整个主区，此时 `toggleExpanded()` 只改 store、屏幕不动。要先
+    `selectPanel(null)` 回会话页，再开右栏（延迟 ~140ms 等 React 提交）。
+
+18. **官方图标名别按语义猜**：侧栏「插件」是 `IconPluginPinwheelOutlineRegular`
+    （四瓣风车），「自动化任务」是 `IconClockOutlineRegular`（指针时钟），
+    不是 `IconCordisPlugin` / `IconAlarmClock`。图标都在
+    `@deepseek-ai/dsh-client-ui-primitives`，`require` 失败要能退回自绘图标。
+
+19. **打开设置必然经过一层菜单**：官方没暴露 settings 服务，唯一路径是
+    「点更多操作 → 点设置」；窄屏还会退到「账号菜单 → 设置」。所以隐身标记要
+    在**进入 `openSettings` 的第一次**就挂上（不能只挂在「更多操作」分支，
+    否则走账号菜单那条路径照样闪）。
+
+20. **右栏页签的 × 看着「飞了」是官方的 min-width 留白**：`.tab` 是
+    `min-width:80px`（content-box）+ `padding:0 10px`，关闭键 `absolute top:4 right:4`
+    → 页签总宽 100、文字只占 ~47，× 被顶到最右边，中间空一大块。
+    收成 `box-sizing:border-box; min-width:0; padding-right:26px` 后 × 紧贴文字。
+
+21. **底栏不透明底色会把输入卡阴影切一刀**：卡片阴影会落到导航那一行，
+    铺 `--dsw-alias-bg-base` 会在交界处出现一条硬边，看起来像输入框被截断。
+    底栏与 `.dshm-v2-nav` 都要 `background: transparent`。
 
 ---
 
