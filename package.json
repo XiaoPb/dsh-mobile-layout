@@ -15,7 +15,7 @@
     "contracts"
   ],
   "scripts": {
-    "test": "node --test --test-force-exit test/*.test.js",
+    "test": "node --test test/*.test.js",
     "check": "node --check lib/client.js && npm test && node scripts/verify-package.mjs && node scripts/check-hardcoded.mjs && node scripts/check-tokens.mjs && node scripts/check-colors.mjs && node scripts/check-contracts.mjs && node scripts/check-compat.mjs && node scripts/check-important.mjs",
     "tokens:check": "node scripts/check-tokens.mjs",
     "metrics": "node scripts/metrics.mjs",

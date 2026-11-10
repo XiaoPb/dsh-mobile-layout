@@ -1,6 +1,6 @@
 {
   "_comment": "!important baseline（见 scripts/check-important.mjs）。减量口径：先在真机比对结构度量，再删、再跑 npm run important:baseline 收紧。",
-  "total": 615,
+  "total": 608,
   "rules": [
     {
       "hash": "f2ee765234dc",
@@ -183,9 +183,19 @@
       "count": 1
     },
     {
-      "hash": "e42ec4c4102c",
-      "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-header-menu-open] [data-dshm-center] header[data-window-drag]",
-      "count": 2
+      "hash": "f9d090bed3b7",
+      "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-header-menu-open] [data-dshm-viewtabs-row]",
+      "count": 1
+    },
+    {
+      "hash": "226e0c7b5a0e",
+      "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"][data-dshm-dock=\"capsule\"] [data-dshm-header-menu] button",
+      "count": 6
+    },
+    {
+      "hash": "49e6190c7467",
+      "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"][data-dshm-dock=\"capsule\"] [data-dshm-header-menu] button span",
+      "count": 3
     },
     {
       "hash": "6b021124e1f2",
@@ -570,12 +580,27 @@
     {
       "hash": "f29567cbf683",
       "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"][data-dshm-dock=\"capsule\"][data-dshm-stats-on] [data-dshm-stats]",
+      "count": 6
+    },
+    {
+      "hash": "06eef184c435",
+      "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"][data-dshm-dock=\"capsule\"] [data-dshm-stats]",
+      "count": 1
+    },
+    {
+      "hash": "55059bbd47a1",
+      "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"][data-dshm-dock=\"capsule\"] [data-dshm-stats] button",
       "count": 4
+    },
+    {
+      "hash": "e375782e8765",
+      "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"][data-dshm-dock=\"capsule\"] [data-dshm-stats] button svg",
+      "count": 2
     },
     {
       "hash": "93751e43ee6d",
       "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"][data-dshm-dock=\"capsule\"] [data-dshm-header-card]",
-      "count": 6
+      "count": 7
     },
     {
       "hash": "4d96d3061353",
@@ -590,27 +615,17 @@
     {
       "hash": "a8a52c23fe96",
       "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"][data-dshm-dock=\"capsule\"] [data-dshm-header-title]",
-      "count": 1
+      "count": 5
     },
     {
-      "hash": "753ed0520e5f",
-      "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"] [data-dshm-center] p",
-      "count": 1
+      "hash": "276ebfee97eb",
+      "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"][data-dshm-dock=\"capsule\"] [data-dshm-header-title] nav",
+      "count": 3
     },
     {
-      "hash": "1788a86aa0ba",
-      "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"] [data-dshm-msg-item] + [data-dshm-msg-item]",
-      "count": 1
-    },
-    {
-      "hash": "e3176ac69615",
-      "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"] [data-dshm-code-block][data-dshm-code-collapsed]",
-      "count": 4
-    },
-    {
-      "hash": "03074ef492eb",
-      "selector": "html[data-dshm-mode=\"mobile\"] [data-dshm-step-hidden]",
-      "count": 1
+      "hash": "12bd69b6db92",
+      "selector": "html[data-dshm-mode=\"mobile\"][data-dshm-preset=\"v2\"][data-dshm-dock=\"capsule\"] [data-dshm-header-toggle]",
+      "count": 2
     },
     {
       "hash": "b2cca3f71fe0",
@@ -746,61 +761,6 @@
       "hash": "5a8a61066c6e",
       "selector": "html[data-dshm-form=\"phone\"] [data-dshm-settings-scroll][data-dshm-settings-swap]",
       "count": 1
-    },
-    {
-      "hash": "53c93da424d5",
-      "selector": "html[data-dshm-form=\"phone\"] [data-terminal] > div:first-child",
-      "count": 5
-    },
-    {
-      "hash": "6097b53d5885",
-      "selector": "html[data-dshm-form=\"phone\"] [data-terminal] > div:first-child > div:first-child",
-      "count": 1
-    },
-    {
-      "hash": "d70ef026a6cd",
-      "selector": "html[data-dshm-form=\"phone\"] [data-terminal] > div:first-child > div:first-child > div:first-of-type",
-      "count": 1
-    },
-    {
-      "hash": "1321136bc508",
-      "selector": "html[data-dshm-form=\"phone\"] [data-terminal] > div:first-child > div:first-child > div:first-of-type > span:not([data-command-text]):not([data-state])",
-      "count": 6
-    },
-    {
-      "hash": "fae393a16fd9",
-      "selector": "html[data-dshm-form=\"phone\"] [data-terminal] > div:first-child > div:first-child > div:first-of-type > [data-command-text]",
-      "count": 3
-    },
-    {
-      "hash": "58b619610c41",
-      "selector": "html[data-dshm-form=\"phone\"] [data-terminal] [data-command-text]",
-      "count": 2
-    },
-    {
-      "hash": "c771915d2ebf",
-      "selector": "html[data-dshm-form=\"phone\"] [data-terminal] > div:first-child > div:first-child > div:first-of-type ~ div",
-      "count": 2
-    },
-    {
-      "hash": "bfb2cbbc15f9",
-      "selector": "html[data-dshm-form=\"phone\"] [data-terminal] > div:first-child > div:first-child > div:first-of-type > [data-state]",
-      "count": 1
-    },
-    {
-      "hash": "a3049d2a4904",
-      "selector": "html[data-dshm-form=\"phone\"] [data-terminal] > div:first-child > span",
-      "count": 2
-    },
-    {
-      "hash": "c4fe29dbe84a",
-      "selector": "html[data-dshm-form=\"phone\"] [data-terminal] > div:first-child > button",
-      "count": 2
-    },
-    {
-      "hash": "77029f290fe2",
-      "selector": "html[data-dshm-form=\"phone\"][data-dshm-preset=\"default\"] [data-dshm-terminal-wrap] [data-terminal] [data-command-text]",
-      "count": 2
     }
   ]
 }

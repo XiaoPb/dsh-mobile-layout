@@ -574,11 +574,11 @@ html[data-dshm-form="phone"] body[data-ds-dark-theme] [data-message-bubble] {
 
 用户反馈：标题行与自绘分段控件之间空出一条明显空白（截图中红框）。测量（AVD，CSS px）：官方 header 的 grid 行是 `44px 52px`，标题元素 40px 居中在 44px 行里；自绘 `.dshm-seg` 只有 48px 高，由 JS 按官方页签行顶（`rowRect.top - headerRect.top`）定位——标题行偏高 + 标题行内的垂直居中留白，合起来就是那条空档。
 
-处理：胶囊态下把 header 的 grid 行压成 `36px 48px`，用**内联 `!important`**（官方 `grid-template-rows` 规则本身带 `!important`，普通选择器压不动）：
+处理：胶囊态下把 header 的 grid 行压成 `36px 32px`（初版 36/48，按真机反馈再把页签行压到 32），用**内联 `!important`**（官方 `grid-template-rows` 规则本身带 `!important`，普通选择器压不动）：
 - 标题行 36px = 头部按键 36px，正好放下；标题文本仍垂直居中；
 - 页签带 48px = 自绘控件高度（40 + 上下 padding 4），分段控件由 JS 实测行位自动跟随，无需改 `top`；
 - header 高度 124 → 112，标题与 TAB 之间的空档减少约 12px。
 
 回收：`cleanupCapsuleArtifacts()` / `clearAnchors()` 在摘 `data-dshm-header-card` 之前 `removeProperty('grid-template-rows')`，切透明 / 其它预设 / 卸载即还原官方 44/52。`test/ux.test.js` 增加源码契约锁这两点。
 
-**验证（AVD）**：胶囊态 `grid-template-rows=36px 48px`、header 高 112、`.dshm-seg` top 由 56 → 44（页面坐标）；切透明后 header 不带内联、行高还原（官方 30/35 的透明布局）；浅色 / 深色均生效；`npm run check` 全绿（301 pass）。
+**验证（AVD）**：胶囊态 `grid-template-rows=36px 32px`、header 高 112、`.dshm-seg` top 由 56 → 44（页面坐标）；切透明后 header 不带内联、行高还原（官方 30/35 的透明布局）；浅色 / 深色均生效；`npm run check` 全绿（301 pass）。

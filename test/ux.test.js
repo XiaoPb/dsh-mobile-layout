@@ -739,7 +739,7 @@ test('源码契约：深色用户消息气泡用主题蓝染暗（所有预设�
 test('源码契约：胶囊头部收紧行高（36/48）且离开胶囊时还原', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'lib', 'client.js'), 'utf8')
   assert.ok(
-    css.includes("header.style.setProperty('grid-template-rows', '36px 48px', 'important')"),
+    css.includes("header.style.setProperty('grid-template-rows', '36px 32px', 'important')"),
     '胶囊头部应把官方 44/52 行高压到 36/48（官方规则带 !important，必须内联）',
   )
   const cleanupAt = css.indexOf('function cleanupCapsuleArtifacts')

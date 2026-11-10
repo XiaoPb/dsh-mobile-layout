@@ -4,6 +4,43 @@
 
 ## [未发布]
 
+### 变更（胶囊界面，按真机反馈在 0.4.12 基础上再调数值）
+
+- **头部再压一档**：0.4.12 用内联 `36px 48px` 收紧头部；真机上页签行仍偏高，这里改成 `36px 32px`，分段控件单项收窄（字号 13 → 12、横向内边距略放宽），整块头部再矮约 16px。
+- **统计带不再被截断**：改为 `space-between` 等距铺开并收内边距/图标，让「轮次/速度」「Token/缓存」「上下文」三组完整落在卡片宽度内；header 卡片 `overflow: visible`（统计带落在卡片底部预留里，裁切会切掉半截）。
+- **标题行带文字的按键不再竖排**：`flex: 0 0 auto; white-space: nowrap; overflow: hidden`（「N 个后台任务」曾被挤成一行一个字；宽度仍与图标键一致，超出的文字裁掉而不是换行）。
+- **自绘控件只在胶囊态创建**：`.dshm-seg` / `.dshm-attach-btn` 的 CSS 只在胶囊作用域，创建点加 `capsuleMode()` 闸门，不再依赖 1.2s 回收兜底。
+
+### 修复（胶囊界面，真机反馈）
+
+- **顶栏 ⋯ 菜单展开时，侧栏键与统计带整条消失、关闭后又闪一下**：菜单展开期间 header 被提到 `z-index: 50`（为了让菜单越过官方那条透明的 `_tabs` 行），而「打开侧边栏」那枚键在 header **之外**、统计带只有 `z-index: 6`，于是被 header 的卡片底盖住；关闭时两者回位就闪一次。现在展开期间把它们一起提到 header 之上（`z-index: 56 / 55`，菜单 host 仍是 60），从根上不再消失，也就没有回位闪烁。
+
+
+- **顶栏 ⋯ 菜单的行只剩一个字**：菜单挂在 header 子树里，被「头部按键统一 40×40」的规则一起命中，行按钮被压成 40px 宽、内容裁掉。现在菜单内的按钮还原成自然宽高（`width/height: auto`、`white-space: normal`），实测三项「复制会话为 Markdown / 下载 Session 日志 / 反馈」完整显示。
+- **分段控件仍然 40px 高、压住标题行**：上游 0.4.12 里有一条同选择器的 `min-height: 2.5rem` 在正文后面，把本 PR 的 24px 覆盖掉了；改为直接改上游那条（`1.5rem`），页签行 32px 才装得下。
+- **标题行按键竖排 / 挤掉标题**：去掉会误伤菜单的 `overflow: hidden`，保留 `nowrap`。
+
+### 性能（无视觉变化）
+
+- **每帧同步链：探测节流、维护不减速**。主 observer 的每帧链里最贵的固定开销是「设置页 / 官方弹层在不在」的存在性探测（各 1~4 次全文档查询），而绝大多数帧答案是「不在」。新增 `PRESENCE_PROBE_MS = 120`，探测结果粘性保存（`overlaysPresent` / `menuPresent`）：没有东西在屏上时中间帧连维护一起跳过，一旦探到就恢复每帧维护，官方重渲染冲掉标记仍能下一帧补回。
+- `prunePopoverMarks` 改为遍历 `popoverMarks` 登记表（`tagComposerMenus` 打标时登记），空表 O(1)；`syncPanelSpace` 从登记表取面板根；输入卡节点改为缓存 + `isConnected` 复核；`removeLayoutPickers` 用 `layoutPickerCount` 做 O(1) 闸门；每帧链里重复的 `syncLayoutPicker()` 去掉一次。
+- 稳态收益：帧路径上的全文档查询约 10 次/帧 → 约 0.4 次/帧，强制布局读数归零。
+
+### 修复
+
+- **官方弹层首帧跳变**：主 observer 的回调现在接收 mutation records，新增节点里出现 `[role=listbox]` / `[role=menu]` 时在同一帧的 rAF（绘制前）补 `tagComposerMenus`，补打窗口 400ms 覆盖官方填内容的几帧——不再「先按官方锚点画一帧、120ms 后跳到底部」。
+
+### 无障碍
+
+- 底部表新增**焦点陷阱**（`trapFocus`）：Tab / Shift+Tab 在面板内循环，不再走到遮罩下面的底部条。
+- 新增常驻的视觉隐藏 `role=status` **播报区**（`announce`）：底部表开合各播一次（`STRINGS.a11yOpened/a11yClosed`，中英成对）；隐藏用 `clip + 1px` 而非 `display:none`，清场时随 `clearAnchors` 摘掉。
+
+### 测试
+
+- `npm test` 去掉 `--test-force-exit`：该参数会在用例未跑完时按掉子进程，同一份代码每次跑到的用例数不同（实测 282 / 290 / 297，全量 308），门禁看起来绿其实漏跑。
+- 新增 `test/frame-sync.test.js`（7 项）与 `test/a11y.test.js`（5 项）源码契约。
+
+
 ### 修复
 
 - **胶囊头部顶部空档收紧**：官方 header 的 grid 行是 44px（标题）+ 52px（页签带），自绘分段控件只有 48px 高，标题与 TAB 之间留出一条明显空白。胶囊态下用内联 `grid-template-rows: 36px 48px !important` 压紧两行（官方规则带 `!important`，普通选择器压不动）；分段控件的 `top` 由实测行位自动跟随；切透明 / 其它预设时移除内联行高，还原官方布局。
