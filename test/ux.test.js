@@ -736,11 +736,16 @@ test('源码契约：深色用户消息气泡用主题蓝染暗（所有预设�
   )
 })
 
-test('源码契约：胶囊头部收紧行高（36/48）且离开胶囊时还原', () => {
+test('源码契约：胶囊头部收紧行高（36/32）且离开胶囊时还原', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'lib', 'client.js'), 'utf8')
   assert.ok(
-    css.includes("header.style.setProperty('grid-template-rows', '36px 48px', 'important')"),
-    '胶囊头部应把官方 44/52 行高压到 36/48（官方规则带 !important，必须内联）',
+    css.includes("header.style.setProperty('grid-template-rows', '36px 32px', 'important')"),
+    '胶囊头部应把官方 44/52 行高压到 36/32（官方规则带 !important，必须内联）',
+  )
+  // CSS 兜底值要与内联值一致：官方页签行不存在时 JS 不接手，靠这条生效。
+  assert.ok(
+    css.includes("'  grid-template-rows: 36px 32px !important;'"),
+    '胶囊头部的 CSS 兜底行高必须也是 36/32，不能与内联值差一档',
   )
   const cleanupAt = css.indexOf('function cleanupCapsuleArtifacts')
   const block = css.slice(cleanupAt, cleanupAt + 2400)
